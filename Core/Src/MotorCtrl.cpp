@@ -8,6 +8,7 @@
 #include "MotorCtrl.h"
 
 void MotorCtrl::Init(TIM_HandleTypeDef* htim){
+	SetMode(Mode::disable);
 	m_tim = htim;
 	ccr_max = __HAL_TIM_GET_AUTORELOAD(m_tim);
 	SetDuty(0);
@@ -46,6 +47,49 @@ void MotorCtrl::SetDuty(int d){
     }
 }
 
-void MotorCtrl::Control(void){
+void MotorCtrl::SetMode(Mode Mode){
+	switch(Mode){
+		case Mode::duty:
+			MotorCtrl::Control = &MotorCtrl::ControlDuty;
+			break;
+		case Mode::current:
+			MotorCtrl::Control = &MotorCtrl::ControlCurrent;
+			break;
+		default:
+			SetDuty(0);
+			MotorCtrl::Control = &MotorCtrl::ControlDisable;
+	}
+	mode = Mode;
+	//TO DO:ES信号を見る
+}
 
+Mode MotorCtrl::GetMode(void)const{
+	return mode;
+}
+
+void MotorCtrl::SetTarget(Float_Type target){
+	switch(mode){
+		case Mode::duty:
+			SetDuty(target*1000);
+			break;
+		case Mode::current:
+			this->target = target;
+			break;
+		default:
+			;
+	}
+}
+
+void MotorCtrl::ControlCurrent(){
+	static Float_Type error[2];
+	static Float_Type u;
+	if(target>0){
+		error[1] = error[0];
+		error[0] = target - current_left;
+		u += 0.1*(error[0]-error[1]) + 0.001*0.05*error[0];
+		SetDuty(u*1000);
+	}
+	else if(target<0){
+
+	}
 }

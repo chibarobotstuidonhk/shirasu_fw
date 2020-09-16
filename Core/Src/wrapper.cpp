@@ -17,7 +17,8 @@ MotorCtrl control;
 static constexpr uint8_t ADC_CONVERTED_DATA_BUFFER_SIZE = 58;
 static uint16_t   ADC1_ConvertedData[ADC_CONVERTED_DATA_BUFFER_SIZE];
 static uint16_t   ADC2_ConvertedData[ADC_CONVERTED_DATA_BUFFER_SIZE];
-static bool monitor=false;
+enum class Monitor {left,right,off};
+static Monitor monitor=Monitor::off;
 
 extern "C" {
 	void cdc_puts(char *str);
@@ -34,16 +35,29 @@ extern "C" {
 	{
 		if(hadc->Instance == ADC1)
 		{
-			HAL_GPIO_TogglePin(LED_YELLOW_GPIO_Port, LED_YELLOW_Pin);
-			if(monitor)
+//			HAL_GPIO_TogglePin(LED_YELLOW_GPIO_Port, LED_YELLOW_Pin);
+			uint32_t sum=0;
+			for(const uint8_t& data:ADC1_ConvertedData){
+				sum+=data;
+			}
+			control.current_left = sum* 3.3/4096 * 20/ADC_CONVERTED_DATA_BUFFER_SIZE;
+			if(monitor==Monitor::left)
 			{
 				CDC_Transmit_FS((uint8_t*)ADC1_ConvertedData,ADC_CONVERTED_DATA_BUFFER_SIZE*sizeof(uint16_t));
-				cdc_puts("\r\n");
 			}
 		}
 		if(hadc->Instance == ADC2)
 		{
-			HAL_GPIO_TogglePin(LED_RED_GPIO_Port, LED_RED_Pin);
+//			HAL_GPIO_TogglePin(LED_RED_GPIO_Port, LED_RED_Pin);
+			uint32_t sum=0;
+			for(const uint8_t& data:ADC2_ConvertedData){
+				sum+=data;
+			}
+			control.current_right = sum* 3.3/4096 * 20/ADC_CONVERTED_DATA_BUFFER_SIZE;
+			if(monitor==Monitor::right)
+			{
+				CDC_Transmit_FS((uint8_t*)ADC2_ConvertedData,ADC_CONVERTED_DATA_BUFFER_SIZE*sizeof(uint16_t));
+			}
 		}
 	}
     /**
@@ -55,7 +69,7 @@ extern "C" {
 	{
 	  if(htim->Instance == TIM3)
 	  {
-		  control.Control();
+		  control.invoke();
 	  }
 	}
 };
@@ -68,38 +82,6 @@ typedef struct {
 
 static void action_hook(MSCORE_ACTION action)
 {
-}
-
-static MSCMD_USER_RESULT usrcmd_system(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
-{
-    char buf[MSCONF_MAX_INPUT_LENGTH];
-    int argc;
-    int i;
-    cdc_puts("[SYSTEM]\r\n");
-    msopt_get_argc(msopt, &argc);
-    for (i = 0; i < argc; i++) {
-        msopt_get_argv(msopt, i, buf, sizeof(buf));
-        cdc_puts(" '");
-        cdc_puts(buf);
-        cdc_puts("'\r\n");
-    }
-    return 0;
-}
-
-static MSCMD_USER_RESULT usrcmd_config(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
-{
-    char buf[MSCONF_MAX_INPUT_LENGTH];
-    int argc;
-    int i;
-    cdc_puts("[CONFIG]\r\n");
-    msopt_get_argc(msopt, &argc);
-    for (i = 0; i < argc; i++) {
-        msopt_get_argv(msopt, i, buf, sizeof(buf));
-        cdc_puts(" '");
-        cdc_puts(buf);
-        cdc_puts("'\r\n");
-    }
-    return 0;
 }
 
 static MSCMD_USER_RESULT usrcmd_help(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
@@ -130,18 +112,38 @@ static MSCMD_USER_RESULT usrcmd_led_toggle(MSOPT *msopt, MSCMD_USER_OBJECT usrob
     return 0;
 }
 
-static MSCMD_USER_RESULT usrcmd_setduty(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
+static MSCMD_USER_RESULT usrcmd_target(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
 {
 	USER_OBJECT *uo = (USER_OBJECT *)usrobj;
     char buf[MSCONF_MAX_INPUT_LENGTH];
     int argc;
     msopt_get_argc(msopt, &argc);
-    for (int i = 0; i < argc; i++) {
-        msopt_get_argv(msopt, i, buf, sizeof(buf));
-        int duty;
-        sscanf(buf,"%d",&duty);
-        control.SetDuty(duty);
+    if(argc == 1){
+//    	switch(control.GetMode()){
+//    		case Mode::duty:
+//    			cdc_puts("duty control\r\n");
+//    			break;
+//    		case Mode::current:
+//    			cdc_puts("current control\r\n");
+//    			break;
+//    		case Mode::velocity:
+//    			cdc_puts("velocity control\r\n");
+//    			break;
+//    		case Mode::position:
+//    			cdc_puts("position control\r\n");
+//    			break;
+//    		case Mode::disable:
+//    			cdc_puts("disable\r\n");
+//    			break;
+//    	}
     }
+    else if(argc == 2){
+        msopt_get_argv(msopt, 1, buf, sizeof(buf));
+        double target;
+        sscanf(buf,"%lf",&target);
+        control.SetTarget(target);
+    }
+    else cdc_puts("too many arguments!\r\n");
     return 0;
 }
 
@@ -151,21 +153,72 @@ static MSCMD_USER_RESULT usrcmd_monitor(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
     char buf[MSCONF_MAX_INPUT_LENGTH];
     int argc;
     msopt_get_argc(msopt, &argc);
-    for (int i = 0; i < argc; i++) {
-        msopt_get_argv(msopt, i, buf, sizeof(buf));
-        if(strcmp(buf,"true")==0) monitor=true;
-        else if(strcmp(buf,"false")==0) monitor=false;
+    if(argc >= 2){
+        msopt_get_argv(msopt, 1, buf, sizeof(buf));
+        if(strcmp(buf,"left")==0) monitor=Monitor::left;
+        else if(strcmp(buf,"right")==0) monitor=Monitor::right;
     }
+    if(argc ==4){
+    	msopt_get_argv(msopt, 3, buf, sizeof(buf));
+    	uint32_t ms;
+    	sscanf(buf,"%d",&ms);
+    	HAL_Delay(ms);
+    }
+    if(argc >= 3){
+        msopt_get_argv(msopt, 2, buf, sizeof(buf));
+        double target;
+        sscanf(buf,"%lf",&target);
+        control.SetTarget(target);
+    }
+    while(cdc_getc()!='\n');
+    monitor=Monitor::off;
+    return 0;
+}
+
+static MSCMD_USER_RESULT usrcmd_mode(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
+{
+	USER_OBJECT *uo = (USER_OBJECT *)usrobj;
+    char buf[MSCONF_MAX_INPUT_LENGTH];
+    int argc;
+    msopt_get_argc(msopt, &argc);
+    if(argc == 1){
+    	switch(control.GetMode()){
+    		case Mode::duty:
+    			cdc_puts("duty control\r\n");
+    			break;
+    		case Mode::current:
+    			cdc_puts("current control\r\n");
+    			break;
+    		case Mode::velocity:
+    			cdc_puts("velocity control\r\n");
+    			break;
+    		case Mode::position:
+    			cdc_puts("position control\r\n");
+    			break;
+    		case Mode::disable:
+    			cdc_puts("disable\r\n");
+    			break;
+    	}
+    }
+    else if(argc == 2){
+    	msopt_get_argv(msopt, 1, buf, sizeof(buf));
+    	if(strcmp(buf,"duty")==0) control.SetMode(Mode::duty);
+    	else if(strcmp(buf,"current")==0) control.SetMode(Mode::current);
+    	else if(strcmp(buf,"velocity")==0) control.SetMode(Mode::velocity);
+    	else if(strcmp(buf,"position")==0) control.SetMode(Mode::position);
+    	else control.SetMode(Mode::disable);
+
+    }
+    else cdc_puts("too many arguments!\r\n");
     return 0;
 }
 
 static MSCMD_COMMAND_TABLE table[] = {
-    {   "system",   usrcmd_system   },
-    {   "config",   usrcmd_config   },
+	{	"mode"		,	usrcmd_mode },
     {   "help",     usrcmd_help     },
     {   "?",        usrcmd_help     },
 	{   "t_led",  usrcmd_led_toggle	},
-	{ "setduty" ,   usrcmd_setduty	},
+	{ 	"target" ,   usrcmd_target	},
 	{	"monitor", usrcmd_monitor	}
 };
 
@@ -192,8 +245,8 @@ void main_cpp(void)
 
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_RESET);
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
-	HAL_TIM_Base_Start_IT(&htim3);
 	control.Init(&htim15);
+	HAL_TIM_Base_Start_IT(&htim3);
 
 	uint8_t sendbuf[] = "shell>";
 	while(1){
