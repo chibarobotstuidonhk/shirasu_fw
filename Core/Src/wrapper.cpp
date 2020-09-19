@@ -21,6 +21,7 @@ enum class Monitor {left,right,off};
 static Monitor monitor=Monitor::off;
 
 extern "C" {
+	void initialise_monitor_handles(void);//Semihosting
 	void cdc_puts(char *str);
 	char cdc_getc();
 	void cdc_put(char c);
@@ -31,6 +32,7 @@ extern "C" {
 	ADC_HandleTypeDef hadc1;
 	ADC_HandleTypeDef hadc2;
 
+	//TODO:dual mode
 	void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 	{
 		if(hadc->Instance == ADC1)
@@ -40,7 +42,7 @@ extern "C" {
 			for(const uint8_t& data:ADC1_ConvertedData){
 				sum+=data;
 			}
-			control.current_left = sum* 3.3/4096 * 20/ADC_CONVERTED_DATA_BUFFER_SIZE;
+			control.current_left = sum*3.3/4096/20/ADC_CONVERTED_DATA_BUFFER_SIZE*1000;
 			if(monitor==Monitor::left)
 			{
 				CDC_Transmit_FS((uint8_t*)ADC1_ConvertedData,ADC_CONVERTED_DATA_BUFFER_SIZE*sizeof(uint16_t));
@@ -53,7 +55,7 @@ extern "C" {
 			for(const uint8_t& data:ADC2_ConvertedData){
 				sum+=data;
 			}
-			control.current_right = sum* 3.3/4096 * 20/ADC_CONVERTED_DATA_BUFFER_SIZE;
+			control.current_right = sum*3.3/4096/20/ADC_CONVERTED_DATA_BUFFER_SIZE*1000;
 			if(monitor==Monitor::right)
 			{
 				CDC_Transmit_FS((uint8_t*)ADC2_ConvertedData,ADC_CONVERTED_DATA_BUFFER_SIZE*sizeof(uint16_t));
@@ -224,6 +226,8 @@ static MSCMD_COMMAND_TABLE table[] = {
 
 void main_cpp(void)
 {
+	initialise_monitor_handles();
+
 	HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
 	HAL_ADCEx_Calibration_Start(&hadc2, ADC_SINGLE_ENDED);
 	HAL_ADC_Start_DMA(&hadc1,(uint32_t *)ADC1_ConvertedData,ADC_CONVERTED_DATA_BUFFER_SIZE);
@@ -245,8 +249,11 @@ void main_cpp(void)
 
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_RESET);
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
-	control.Init(&htim15);
+	control.Init(&htim15,&htim3);
 	HAL_TIM_Base_Start_IT(&htim3);
+
+	printf("started");
+
 
 	uint8_t sendbuf[] = "shell>";
 	while(1){

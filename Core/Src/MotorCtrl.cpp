@@ -7,13 +7,21 @@
 
 #include "MotorCtrl.h"
 
-void MotorCtrl::Init(TIM_HandleTypeDef* htim){
+void MotorCtrl::Init(TIM_HandleTypeDef* tim_pwm,TIM_HandleTypeDef* tim_it){
 	SetMode(Mode::disable);
-	m_tim = htim;
-	ccr_max = __HAL_TIM_GET_AUTORELOAD(m_tim);
+	this->tim_pwm = tim_pwm;
+	this->tim_it = tim_it;
+	ccr_max = __HAL_TIM_GET_AUTORELOAD(tim_pwm);
+
+
+	Float_Type Kp = 1000*motor.L;
+	Float_Type pole = motor.R / motor.L;
+	Float_Type Ki = pole * Kp;
+	current_controller.reset(Kp, Ki);
+
 	SetDuty(0);
-	HAL_TIM_PWM_Start(m_tim, TIM_CHANNEL_1);
-	HAL_TIM_PWM_Start(m_tim, TIM_CHANNEL_2);
+	HAL_TIM_PWM_Start(tim_pwm, TIM_CHANNEL_1);
+	HAL_TIM_PWM_Start(tim_pwm, TIM_CHANNEL_2);
 }
 
 // @param d duty ratio multiplied by 1000, where 1000 represents 100% duty ratio.
@@ -26,25 +34,24 @@ void MotorCtrl::SetDuty(int d){
 
     if (0 < d)
     {
-//        TIM1->CCR1 = d * ccr_max / 1000;
-//        TIM1->CCR2 = 0;
-    	__HAL_TIM_SET_COMPARE(m_tim, TIM_CHANNEL_1, d*ccr_max/1000);
-    	__HAL_TIM_SET_COMPARE(m_tim, TIM_CHANNEL_2, 1);
+    	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_1, d*ccr_max/1000);
+    	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_2, 1);
     }
     else if (d < 0)
     {
-//        TIM1->CCR1 = 0;
-//        TIM1->CCR2 = -d * ccr_max / 1000;
-    	__HAL_TIM_SET_COMPARE(m_tim, TIM_CHANNEL_1, 1);
-    	__HAL_TIM_SET_COMPARE(m_tim, TIM_CHANNEL_2, -d*ccr_max/1000);
+    	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_1, 1);
+    	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_2, -d*ccr_max/1000);
     }
     else
     {
-//        TIM1->CCR1 = 0;
-//        TIM1->CCR2 = 0;
-    	__HAL_TIM_SET_COMPARE(m_tim, TIM_CHANNEL_1, 0);
-    	__HAL_TIM_SET_COMPARE(m_tim, TIM_CHANNEL_2, 0);
+    	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_1, 0);
+    	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_2, 0);
     }
+}
+
+void MotorCtrl::SetVoltage(Float_Type v){
+	SetDuty(v/supply_voltage*1000);
+	voltage=v;
 }
 
 void MotorCtrl::SetMode(Mode Mode){
@@ -60,7 +67,7 @@ void MotorCtrl::SetMode(Mode Mode){
 			MotorCtrl::Control = &MotorCtrl::ControlDisable;
 	}
 	mode = Mode;
-	//TO DO:ES信号を見る
+	//TODO:ES信号を見る
 }
 
 Mode MotorCtrl::GetMode(void)const{
@@ -81,15 +88,10 @@ void MotorCtrl::SetTarget(Float_Type target){
 }
 
 void MotorCtrl::ControlCurrent(){
-	static Float_Type error[2];
-	static Float_Type u;
-	if(target>0){
-		error[1] = error[0];
-		error[0] = target - current_left;
-		u += 0.1*(error[0]-error[1]) + 0.001*0.05*error[0];
-		SetDuty(u*1000);
-	}
-	else if(target<0){
-
-	}
+	Float_Type current = current_left>current_right ? current_left : -current_right;
+	Float_Type Vemf = voltage - motor.inverse(current); //TODO:Filter
+	SetVoltage(current_controller.update(target-current)+Vemf);
 }
+
+
+
