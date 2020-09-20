@@ -13,7 +13,7 @@ void MotorCtrl::Init(TIM_HandleTypeDef* tim_pwm,TIM_HandleTypeDef* tim_it){
 	this->tim_it = tim_it;
 	ccr_max = __HAL_TIM_GET_AUTORELOAD(tim_pwm);
 
-
+	motor.reset(0.289256,0.0000144628);
 	Float_Type Kp = 1000*motor.L;
 	Float_Type pole = motor.R / motor.L;
 	Float_Type Ki = pole * Kp;
@@ -90,7 +90,8 @@ void MotorCtrl::SetTarget(Float_Type target){
 void MotorCtrl::ControlCurrent(){
 	Float_Type current = current_left>current_right ? current_left : -current_right;
 	Float_Type Vemf = voltage - motor.inverse(current); //TODO:Filter
-	SetVoltage(current_controller.update(target-current)+Vemf);
+//	SetVoltage(current_controller.update(target-current)+Vemf);
+	SetVoltage(current_controller.update(target-current));
 }
 
 

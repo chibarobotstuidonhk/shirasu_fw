@@ -12,6 +12,7 @@
 #include "mscmd.h"
 
 #include "MotorCtrl.h"
+#include "dwt.hpp"
 
 MotorCtrl control;
 static constexpr uint8_t ADC_CONVERTED_DATA_BUFFER_SIZE = 58;
@@ -21,7 +22,6 @@ enum class Monitor {left,right,off};
 static Monitor monitor=Monitor::off;
 
 extern "C" {
-	void initialise_monitor_handles(void);//Semihosting
 	void cdc_puts(char *str);
 	char cdc_getc();
 	void cdc_put(char c);
@@ -35,6 +35,8 @@ extern "C" {
 	//TODO:dual mode
 	void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 	{
+		dwt::Tim tim;
+
 		if(hadc->Instance == ADC1)
 		{
 //			HAL_GPIO_TogglePin(LED_YELLOW_GPIO_Port, LED_YELLOW_Pin);
@@ -95,6 +97,15 @@ static MSCMD_USER_RESULT usrcmd_help(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
             "help   : help command\r\n"
     		"t_led   : toggle led\r\n"
             );
+    return 0;
+}
+
+static MSCMD_USER_RESULT usrcmd_process_time(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
+{
+    USER_OBJECT *uo = (USER_OBJECT *)usrobj;
+    char str[256];
+    sprintf(str,"%d\r\n",dwt::Tim::get_cpu_cycle());
+    uo->puts(str);
     return 0;
 }
 
@@ -221,12 +232,13 @@ static MSCMD_COMMAND_TABLE table[] = {
     {   "?",        usrcmd_help     },
 	{   "t_led",  usrcmd_led_toggle	},
 	{ 	"target" ,   usrcmd_target	},
-	{	"monitor", usrcmd_monitor	}
+	{	"monitor", usrcmd_monitor	},
+	{"time",  usrcmd_process_time	}
 };
 
 void main_cpp(void)
 {
-	initialise_monitor_handles();
+	dwt::Tim::init();
 
 	HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
 	HAL_ADCEx_Calibration_Start(&hadc2, ADC_SINGLE_ENDED);
