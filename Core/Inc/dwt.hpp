@@ -9,34 +9,62 @@
 #define INC_DWT_HPP_
 
 #include "core_cm4.h"
+#include "system_stm32f3xx.h"
 
 namespace dwt{
-	class Tim{
+	static void init(){
+		CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+		DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+	}
+
+	class ProcessTim{
 	public:
-		Tim(){
+		ProcessTim(){
 			start = DWT->CYCCNT;
 		}
-		~Tim(){
+		~ProcessTim(){
+			uint32_t stop = DWT->CYCCNT-start;
 			if(num < size){
-				sum+=DWT->CYCCNT-start;
+				sum += stop;
 				++num;
 			}
 		}
-		static void init(){
-			CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
-			DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
-		}
-		static uint32_t get_cpu_cycle(){
-			return sum/num;
+
+		static float get_process_time(){
+			return (float)sum/num/SystemCoreClock*1000;
 		}
 	private:
-		static constexpr uint32_t size = 20;
-		static uint32_t sum;
-		static uint32_t num;
+		static constexpr uint32_t size = 100;
+		static inline uint32_t sum = 0;
+		static inline uint32_t num = 0;
 		uint32_t start;
 	};
-	uint32_t Tim::sum = 0;
-	uint32_t Tim::num = 0;
+
+	class Frequency{
+	public:
+		Frequency(){
+			if(last == 0 || num > size) last = DWT->CYCCNT;
+			else{
+				uint32_t now = DWT->CYCCNT;
+				sum += now - last;
+				last = now;
+				++num;
+			}
+		}
+		static float get_process_frequency(){
+			if(sum == 0){
+				return 0;
+			}
+			else{
+				return (float)SystemCoreClock*(float)num/(float)sum;
+			}
+		}
+	private:
+		static constexpr uint32_t size = 100;
+		static inline uint32_t sum = 0;
+		static inline uint32_t num = 0;
+		static inline uint32_t last = 0;
+	};
 }
 
 #endif /* INC_DWT_HPP_ */

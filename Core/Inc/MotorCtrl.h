@@ -63,7 +63,7 @@ private:
 	Mode mode=Mode::disable;
 	Float_Type target=0;
 	Float_Type voltage=0;
-	static constexpr Float_Type T=0.001;	//TODO:set automatically
+	static constexpr Float_Type T=0.00022756559374454696;	//TODO:set automatically
 	Float_Type supply_voltage=20;	//TODO:measure supply voltage
 	PI current_controller;
 	Motor motor;
@@ -74,17 +74,16 @@ private:
 	void ControlDuty(){};
 	void ControlCurrent();
 public:
-	Float_Type current_left;
-	Float_Type current_right;
+	Float_Type current;
 	void Init(TIM_HandleTypeDef* tim_pwm,TIM_HandleTypeDef* tim_it);
 	Mode GetMode()const;
 	void SetMode(Mode);
 	void SetTarget(Float_Type);
 	void SetVoltage(Float_Type);
 	void (MotorCtrl::*Control)(void)=&MotorCtrl::ControlDisable;
-	void invoke(){
-		(this->*Control)();
-	}
+	void invoke(uint16_t* data);
+	static constexpr uint16_t ADC_DATA_SIZE=256;
+	bool monitor = false;
 };
 
 #endif /* SRC_MOTORCTRL_H_ */

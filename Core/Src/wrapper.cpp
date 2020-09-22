@@ -15,9 +15,13 @@
 #include "dwt.hpp"
 
 MotorCtrl control;
-static constexpr uint8_t ADC_CONVERTED_DATA_BUFFER_SIZE = 58;
-static uint16_t   ADC1_ConvertedData[ADC_CONVERTED_DATA_BUFFER_SIZE];
-static uint16_t   ADC2_ConvertedData[ADC_CONVERTED_DATA_BUFFER_SIZE];
+
+union E{
+	uint32_t ADCDualConvertedValue[MotorCtrl::ADC_DATA_SIZE*2];
+	uint16_t ADCConvertedValue[MotorCtrl::ADC_DATA_SIZE*4];
+};
+static E adc_buff;
+
 enum class Monitor {left,right,off};
 static Monitor monitor=Monitor::off;
 
@@ -35,34 +39,11 @@ extern "C" {
 	//TODO:dual mode
 	void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 	{
-		dwt::Tim tim;
-
-		if(hadc->Instance == ADC1)
-		{
-//			HAL_GPIO_TogglePin(LED_YELLOW_GPIO_Port, LED_YELLOW_Pin);
-			uint32_t sum=0;
-			for(const uint8_t& data:ADC1_ConvertedData){
-				sum+=data;
-			}
-			control.current_left = sum*3.3/4096/20/ADC_CONVERTED_DATA_BUFFER_SIZE*1000;
-			if(monitor==Monitor::left)
-			{
-				CDC_Transmit_FS((uint8_t*)ADC1_ConvertedData,ADC_CONVERTED_DATA_BUFFER_SIZE*sizeof(uint16_t));
-			}
-		}
-		if(hadc->Instance == ADC2)
-		{
-//			HAL_GPIO_TogglePin(LED_RED_GPIO_Port, LED_RED_Pin);
-			uint32_t sum=0;
-			for(const uint8_t& data:ADC2_ConvertedData){
-				sum+=data;
-			}
-			control.current_right = sum*3.3/4096/20/ADC_CONVERTED_DATA_BUFFER_SIZE*1000;
-			if(monitor==Monitor::right)
-			{
-				CDC_Transmit_FS((uint8_t*)ADC2_ConvertedData,ADC_CONVERTED_DATA_BUFFER_SIZE*sizeof(uint16_t));
-			}
-		}
+		control.invoke(adc_buff.ADCConvertedValue+MotorCtrl::ADC_DATA_SIZE*2);
+	}
+	void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef *hadc)
+	{
+		control.invoke(adc_buff.ADCConvertedValue);
 	}
     /**
      * @brief
@@ -71,10 +52,9 @@ extern "C" {
      */
 	void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	{
-	  if(htim->Instance == TIM3)
-	  {
-		  control.invoke();
-	  }
+//	  if(htim->Instance == TIM3)
+//	  {
+//	  }
 	}
 };
 
@@ -104,7 +84,7 @@ static MSCMD_USER_RESULT usrcmd_process_time(MSOPT *msopt, MSCMD_USER_OBJECT usr
 {
     USER_OBJECT *uo = (USER_OBJECT *)usrobj;
     char str[256];
-    sprintf(str,"%d\r\n",dwt::Tim::get_cpu_cycle());
+    sprintf(str,"process time:%f[ms]\r\nfrequency:%f[Hz]\r\n",dwt::ProcessTim::get_process_time(),dwt::Frequency::get_process_frequency());
     uo->puts(str);
     return 0;
 }
@@ -166,25 +146,44 @@ static MSCMD_USER_RESULT usrcmd_monitor(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
     char buf[MSCONF_MAX_INPUT_LENGTH];
     int argc;
     msopt_get_argc(msopt, &argc);
-    if(argc >= 2){
-        msopt_get_argv(msopt, 1, buf, sizeof(buf));
-        if(strcmp(buf,"left")==0) monitor=Monitor::left;
-        else if(strcmp(buf,"right")==0) monitor=Monitor::right;
-    }
-    if(argc ==4){
-    	msopt_get_argv(msopt, 3, buf, sizeof(buf));
+    control.monitor = true;
+    if(argc == 3){
+    	msopt_get_argv(msopt, 2, buf, sizeof(buf));
     	uint32_t ms;
     	sscanf(buf,"%d",&ms);
     	HAL_Delay(ms);
     }
-    if(argc >= 3){
-        msopt_get_argv(msopt, 2, buf, sizeof(buf));
+    if(argc >= 2){
+        msopt_get_argv(msopt, 1, buf, sizeof(buf));
         double target;
         sscanf(buf,"%lf",&target);
         control.SetTarget(target);
     }
     while(cdc_getc()!='\n');
-    monitor=Monitor::off;
+    control.monitor = false;
+    return 0;
+}
+
+static MSCMD_USER_RESULT usrcmd_get(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
+{
+	USER_OBJECT *uo = (USER_OBJECT *)usrobj;
+    char buf[MSCONF_MAX_INPUT_LENGTH];
+    int argc;
+    msopt_get_argc(msopt, &argc);
+    char str[256];
+    for (int i = 0; i < argc; i++) {
+        msopt_get_argv(msopt, i, buf, sizeof(buf));
+        if (strcmp(buf, "current") == 0){
+        	sprintf(str,"current:%f[A]\r\n",control.current);
+        }
+        else if(strcmp(buf,"process")==0){
+        	sprintf(str,"process time:%f[ms]\r\n",dwt::ProcessTim::get_process_time());
+        }
+        else if(strcmp(buf,"frequency")==0){
+        	sprintf(str,"frequency:%f[Hz]\r\n",dwt::Frequency::get_process_frequency());
+        }
+        uo->puts(str);
+    }
     return 0;
 }
 
@@ -233,17 +232,39 @@ static MSCMD_COMMAND_TABLE table[] = {
 	{   "t_led",  usrcmd_led_toggle	},
 	{ 	"target" ,   usrcmd_target	},
 	{	"monitor", usrcmd_monitor	},
+	{   "get"    ,   usrcmd_get		},
 	{"time",  usrcmd_process_time	}
 };
 
 void main_cpp(void)
 {
-	dwt::Tim::init();
+	dwt::init();
 
-	HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
-	HAL_ADCEx_Calibration_Start(&hadc2, ADC_SINGLE_ENDED);
-	HAL_ADC_Start_DMA(&hadc1,(uint32_t *)ADC1_ConvertedData,ADC_CONVERTED_DATA_BUFFER_SIZE);
-	HAL_ADC_Start_DMA(&hadc2,(uint32_t *)ADC2_ConvertedData,ADC_CONVERTED_DATA_BUFFER_SIZE);
+	if (HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED) != HAL_OK)
+	{
+		/* Start Conversation Error */
+		Error_Handler();
+	}
+
+	if (HAL_ADCEx_Calibration_Start(&hadc2, ADC_SINGLE_ENDED) != HAL_OK)
+	{
+		/* Start Conversation Error */
+		Error_Handler();
+	}
+
+	/*##-2- Enable ADC2 ########################################################*/
+	if (HAL_ADC_Start(&hadc2) != HAL_OK)
+	{
+		/* Start Error */
+		Error_Handler();
+	}
+
+	/*##-3- Start ADC1 and ADC2 multimode conversion process and enable DMA ####*/
+	if (HAL_ADCEx_MultiModeStart_DMA(&hadc1, (uint32_t*)adc_buff.ADCDualConvertedValue, MotorCtrl::ADC_DATA_SIZE*2) != HAL_OK)
+	{
+		/* Start Error */
+		Error_Handler();
+	}
 
 	char buf[MSCONF_MAX_INPUT_LENGTH];
 	MICROSHELL ms;
