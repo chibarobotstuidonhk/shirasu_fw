@@ -10,16 +10,29 @@
 
 #include "stm32f3xx_hal.h"
 
-enum class Mode {duty,current,velocity,position,disable};
+using Float_Type = float;
+
+union E{
+	uint32_t ADCDualConvertedValue;
+	uint16_t ADCConvertedValue[2];
+};
+
+struct DataStruct{
+	Float_Type current;
+};
 
 class MotorCtrl {
-	using Float_Type = float;
+public:
+	enum class Mode {duty,current,velocity,position,disable};
+private:
+	using MemberFunc = void (MotorCtrl::*)(void);
+
 	class PI{
 	public:
-		void reset(Float_Type Kp,Float_Type Ki)
+		Float_Type Kp;
+		Float_Type Ki;
+		void reset()
 		{
-			this->Kp = Kp;
-			this->Ki = Ki;
 			u = 0;
 			e_prev = 0;
 		}
@@ -32,18 +45,15 @@ class MotorCtrl {
 	private:
 		Float_Type u;
 		Float_Type e_prev;
-		Float_Type Kp;
-		Float_Type Ki;
+
 	};
 
 	class Motor{
 	public:
 		Float_Type R;
 		Float_Type L;
-		void reset(Float_Type R,Float_Type L)
+		void reset()
 		{
-			this->R = R;
-			this->L = L;
 			i_prev = 0;
 		}
 		Float_Type inverse(Float_Type i)
@@ -59,11 +69,13 @@ class MotorCtrl {
 private:
 	TIM_HandleTypeDef* tim_pwm;
 	TIM_HandleTypeDef* tim_it;
+	ADC_HandleTypeDef* adc_master;
+	ADC_HandleTypeDef* adc_slave;
 	uint16_t ccr_max;
 	Mode mode=Mode::disable;
 	Float_Type target=0;
 	Float_Type voltage=0;
-	static constexpr Float_Type T=0.00022756559374454696;	//TODO:set automatically
+
 	Float_Type supply_voltage=20;	//TODO:measure supply voltage
 	PI current_controller;
 	Motor motor;
@@ -73,17 +85,24 @@ private:
 	void ControlDisable(){};
 	void ControlDuty(){};
 	void ControlCurrent();
+
+	void Start();
+	void Stop();
 public:
-	Float_Type current;
-	void Init(TIM_HandleTypeDef* tim_pwm,TIM_HandleTypeDef* tim_it);
+	DataStruct data;
+	void Init(TIM_HandleTypeDef*,ADC_HandleTypeDef*,ADC_HandleTypeDef*);
 	Mode GetMode()const;
 	void SetMode(Mode);
+	Float_Type GetTarget()const;
 	void SetTarget(Float_Type);
 	void SetVoltage(Float_Type);
-	void (MotorCtrl::*Control)(void)=&MotorCtrl::ControlDisable;
-	void invoke(uint16_t* data);
+	MemberFunc Control = &MotorCtrl::ControlDisable;
+	void invoke(uint16_t* buf);
 	static constexpr uint16_t ADC_DATA_SIZE=256;
+	static constexpr Float_Type T=0.00022756559374454696;	//TODO:set automatically
 	bool monitor = false;
+	E adc_buff[ADC_DATA_SIZE*2];
 };
+
 
 #endif /* SRC_MOTORCTRL_H_ */

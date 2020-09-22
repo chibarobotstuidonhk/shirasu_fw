@@ -5,28 +5,45 @@
  *      Author: ryu
  */
 
-#include "MotorCtrl.h"
+#include <MotorCtrl.hpp>
 #include "dwt.hpp"
+#include "stdio.h"
 
 extern "C"{
 	uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len);
 }
 
-void MotorCtrl::Init(TIM_HandleTypeDef* tim_pwm,TIM_HandleTypeDef* tim_it){
-	SetMode(Mode::disable);
+void MotorCtrl::Init(TIM_HandleTypeDef* tim_pwm,ADC_HandleTypeDef* adc_master,ADC_HandleTypeDef* adc_slave){
 	this->tim_pwm = tim_pwm;
-	this->tim_it = tim_it;
+	this->adc_master = adc_master;
+	this->adc_slave = adc_slave;
 	ccr_max = __HAL_TIM_GET_AUTORELOAD(tim_pwm);
 
-	motor.reset(0.289256,0.0000144628);
-	Float_Type Kp = 1000*motor.L;
+	motor.R = 0.289256;
+	motor.L = 0.0000144628;
+	current_controller.Kp = 1000*motor.L;
 	Float_Type pole = motor.R / motor.L;
-	Float_Type Ki = pole * Kp;
-	current_controller.reset(Kp, Ki);
+	current_controller.Ki = pole * current_controller.Kp;
+}
 
-	SetDuty(0);
+void MotorCtrl::Start(){
+	target = 0;
+	current_controller.reset();
+	motor.reset();
+	HAL_ADCEx_Calibration_Start(adc_master, ADC_SINGLE_ENDED);
+	HAL_ADCEx_Calibration_Start(adc_slave, ADC_SINGLE_ENDED);
+	HAL_ADC_Start(adc_slave);
+	HAL_ADCEx_MultiModeStart_DMA(adc_master, &adc_buff[0].ADCDualConvertedValue, MotorCtrl::ADC_DATA_SIZE*2);
+
 	HAL_TIM_PWM_Start(tim_pwm, TIM_CHANNEL_1);
 	HAL_TIM_PWM_Start(tim_pwm, TIM_CHANNEL_2);
+}
+
+void MotorCtrl::Stop(){
+	HAL_TIM_PWM_Stop(tim_pwm, TIM_CHANNEL_1);
+	HAL_TIM_PWM_Stop(tim_pwm, TIM_CHANNEL_2);
+	HAL_ADCEx_MultiModeStop_DMA(adc_master);
+	HAL_ADC_Stop(adc_slave);
 }
 
 // @param d duty ratio multiplied by 1000, where 1000 represents 100% duty ratio.
@@ -62,50 +79,56 @@ void MotorCtrl::SetVoltage(Float_Type v){
 void MotorCtrl::SetMode(Mode Mode){
 	switch(Mode){
 		case Mode::duty:
-			MotorCtrl::Control = &MotorCtrl::ControlDuty;
+			Control = &MotorCtrl::ControlDuty;
 			break;
 		case Mode::current:
-			MotorCtrl::Control = &MotorCtrl::ControlCurrent;
+			Control = &MotorCtrl::ControlCurrent;
 			break;
 		default:
-			SetDuty(0);
-			MotorCtrl::Control = &MotorCtrl::ControlDisable;
+			Control = &MotorCtrl::ControlDisable;
 	}
+	if(Mode != Mode::disable) Start();
+	else Stop();
 	mode = Mode;
 	//TODO:ES信号を見る
 }
 
-Mode MotorCtrl::GetMode(void)const{
+MotorCtrl::Mode MotorCtrl::GetMode(void)const{
 	return mode;
 }
 
 void MotorCtrl::SetTarget(Float_Type target){
+	this->target = target;
 	switch(mode){
 		case Mode::duty:
 			SetDuty(target*1000);
 			break;
 		case Mode::current:
-			this->target = target;
 			break;
 		default:
 			;
 	}
 }
 
-void MotorCtrl::ControlCurrent(){
-	Float_Type Vemf = voltage - motor.inverse(current); //TODO:Filter
-//	SetVoltage(current_controller.update(target-current)+Vemf);
-	SetVoltage(current_controller.update(target-current));
+Float_Type MotorCtrl::GetTarget()const{
+	return target;
 }
 
-void MotorCtrl::invoke(uint16_t* data){
+void MotorCtrl::ControlCurrent(){
+	SetVoltage(current_controller.update(target-data.current));
+}
+
+void MotorCtrl::invoke(uint16_t* buf){
 	dwt::Frequency freq;
 	dwt::ProcessTim tim;
 	int32_t sum=0;
 	for(int i=0;i<ADC_DATA_SIZE*2;i+=2){
-		sum+=data[i]-data[i+1];
+		sum+=buf[i]-buf[i+1];
 	}
-	current = sum*3.3/4096/20/ADC_DATA_SIZE*1000;
+	data.current = sum*3.3/4096/20/ADC_DATA_SIZE*1000;
 	(this->*Control)();
-	if(monitor)	CDC_Transmit_FS((uint8_t*)data,ADC_DATA_SIZE*sizeof(uint16_t)*2);
+	if(monitor){
+		CDC_Transmit_FS((uint8_t*)buf,ADC_DATA_SIZE*sizeof(uint16_t)*2);
+//		CDC_Transmit_FS((uint8_t*)&data,sizeof(data));
+	}
 }
