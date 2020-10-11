@@ -22,6 +22,7 @@ extern "C" {
 	void cdc_put(char c);
 	uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len);
 	TIM_HandleTypeDef htim15;
+	TIM_HandleTypeDef htim2;
 	TIM_HandleTypeDef htim3;
 
 	ADC_HandleTypeDef hadc1;
@@ -45,6 +46,18 @@ extern "C" {
 //	  if(htim->Instance == TIM3)
 //	  {
 //	  }
+		static uint32_t tick = 0;
+		switch (control.GetMode()) {
+			case MotorCtrl::Mode::current:
+				if(control.GetTarget() > 20.0f)
+				{
+					if(HAL_GetTick()-tick > 1000) control.SetTarget(0);
+				}
+				else tick = HAL_GetTick();
+				break;
+			default:
+				break;
+		}
 	}
 };
 
@@ -138,7 +151,7 @@ static MSCMD_USER_RESULT usrcmd_get(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
     int argc;
     msopt_get_argc(msopt, &argc);
     for (int i = 0; i < argc; i++) {
-    	char str[256];
+    	char str[256]={};
         msopt_get_argv(msopt, i, buf, sizeof(buf));
         if (strcmp(buf, "current") == 0){
         	sprintf(str,"current:%f[A]\r\n",control.data.current);
@@ -148,6 +161,12 @@ static MSCMD_USER_RESULT usrcmd_get(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
         }
         else if(strcmp(buf,"frequency")==0){
         	sprintf(str,"frequency:%f[Hz]\r\n",dwt::Frequency::get_process_frequency());
+        }
+        else if(strcmp(buf,"velocity")==0){
+        	sprintf(str,"velocity:%f[rad/s]\r\n",control.data.velocity);
+        }
+        else if(strcmp(buf,"position")==0){
+        	sprintf(str,"position:%d[pulse]\r\n",control.data.position_pulse);
         }
         uo->puts(str);
     }
@@ -223,6 +242,7 @@ void main_cpp(void)
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
 	control.Init(&htim15,&hadc1,&hadc2);
 	HAL_TIM_Base_Start_IT(&htim3);
+	HAL_TIM_Encoder_Start(&htim2,TIM_CHANNEL_ALL);
 
 	uint8_t sendbuf[] = "shell>";
 	while(1){

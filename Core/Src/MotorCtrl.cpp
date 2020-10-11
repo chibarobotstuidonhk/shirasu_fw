@@ -20,8 +20,9 @@ void MotorCtrl::Init(TIM_HandleTypeDef* tim_pwm,ADC_HandleTypeDef* adc_master,AD
 	ccr_max = __HAL_TIM_GET_AUTORELOAD(tim_pwm);
 
 	motor.R = 0.289256;
-	motor.L = 0.0000144628;
-	current_controller.Kp = 1000*motor.L;
+//	motor.L = 0.0000144628;
+	motor.L = 0.000144628;
+	current_controller.Kp = 1200*motor.L;
 	Float_Type pole = motor.R / motor.L;
 	current_controller.Ki = pole * current_controller.Kp;
 }
@@ -35,6 +36,8 @@ void MotorCtrl::Start(){
 	HAL_ADC_Start(adc_slave);
 	HAL_ADCEx_MultiModeStart_DMA(adc_master, &adc_buff[0].ADCDualConvertedValue, MotorCtrl::ADC_DATA_SIZE*2);
 
+	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_1, 1);
+	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_2, 1);
 	HAL_TIM_PWM_Start(tim_pwm, TIM_CHANNEL_1);
 	HAL_TIM_PWM_Start(tim_pwm, TIM_CHANNEL_2);
 }
@@ -57,11 +60,11 @@ void MotorCtrl::SetDuty(int d){
     if (0 < d)
     {
     	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_1, d*ccr_max/1000);
-    	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_2, 1);
+    	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_2, 0);
     }
     else if (d < 0)
     {
-    	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_1, 1);
+    	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_1, 0);
     	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_2, -d*ccr_max/1000);
     }
     else
@@ -126,9 +129,12 @@ void MotorCtrl::invoke(uint16_t* buf){
 		sum+=buf[i]-buf[i+1];
 	}
 	data.current = sum*3.3/4096/20/ADC_DATA_SIZE*1000;
+    int16_t pulse = static_cast<int16_t>(TIM2->CNT);
+    TIM2->CNT = 0;
+	data.velocity = pulse * Kh;
+    data.position_pulse += pulse;
 	(this->*Control)();
 	if(monitor){
 		CDC_Transmit_FS((uint8_t*)buf,ADC_DATA_SIZE*sizeof(uint16_t)*2);
-//		CDC_Transmit_FS((uint8_t*)&data,sizeof(data));
 	}
 }

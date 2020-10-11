@@ -9,6 +9,7 @@
 #define SRC_MOTORCTRL_H_
 
 #include "stm32f3xx_hal.h"
+#include <cmath>
 
 using Float_Type = float;
 
@@ -19,6 +20,8 @@ union E{
 
 struct DataStruct{
 	Float_Type current;
+	Float_Type velocity;
+	int32_t position_pulse;
 };
 
 class MotorCtrl {
@@ -99,7 +102,8 @@ public:
 	MemberFunc Control = &MotorCtrl::ControlDisable;
 	void invoke(uint16_t* buf);
 	static constexpr uint16_t ADC_DATA_SIZE=256;
-	static constexpr Float_Type T=0.00022756559374454696;	//TODO:set automatically
+	static constexpr Float_Type T=0.000125;//TODO:set automatically
+	static constexpr Float_Type Kh = 2 * M_PI / (400 * T); // エンコーダ入力[pulse/ctrl]を[rad/s]に変換する係数．kg / Tc．
 	bool monitor = false;
 	E adc_buff[ADC_DATA_SIZE*2];
 };
