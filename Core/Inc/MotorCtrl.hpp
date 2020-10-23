@@ -81,6 +81,8 @@ private:
 
 	Float_Type supply_voltage=20;	//TODO:measure supply voltage
 	PI current_controller;
+	PI velocity_controller;
+	PI position_controller;
 	Motor motor;
 
 	void SetDuty(int d);
@@ -89,10 +91,14 @@ private:
 	void ControlDuty(){};
 	void ControlCurrent();
 
+
 	void Start();
 	void Stop();
 public:
 	DataStruct data;
+	Float_Type target_current;
+	Float_Type target_velocity;
+	int32_t target_position_pulse;
 	void Init(TIM_HandleTypeDef*,ADC_HandleTypeDef*,ADC_HandleTypeDef*);
 	Mode GetMode()const;
 	void SetMode(Mode);
@@ -101,11 +107,17 @@ public:
 	void SetVoltage(Float_Type);
 	MemberFunc Control = &MotorCtrl::ControlDisable;
 	void invoke(uint16_t* buf);
+	void update();
 	static constexpr uint16_t ADC_DATA_SIZE=256;
 	static constexpr Float_Type T=0.000125;//TODO:set automatically
 	static constexpr Float_Type Kh = 2 * M_PI / (400 * T); // エンコーダ入力[pulse/ctrl]を[rad/s]に変換する係数．kg / Tc．
+	static constexpr Float_Type current_lim_pusled=40;
+	static constexpr Float_Type current_lim_continuous=12;
 	bool monitor = false;
 	E adc_buff[ADC_DATA_SIZE*2];
+
+	void ControlVelocity();
+	void ControlPosition();
 };
 
 

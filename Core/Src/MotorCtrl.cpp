@@ -8,6 +8,7 @@
 #include <MotorCtrl.hpp>
 #include "dwt.hpp"
 #include "stdio.h"
+#include <cmath>
 
 extern "C"{
 	uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len);
@@ -20,17 +21,21 @@ void MotorCtrl::Init(TIM_HandleTypeDef* tim_pwm,ADC_HandleTypeDef* adc_master,AD
 	ccr_max = __HAL_TIM_GET_AUTORELOAD(tim_pwm);
 
 	motor.R = 0.289256;
-//	motor.L = 0.0000144628;
 	motor.L = 0.000144628;
 	current_controller.Kp = 1200*motor.L;
 	Float_Type pole = motor.R / motor.L;
 	current_controller.Ki = pole * current_controller.Kp;
+
+	velocity_controller.Kp = 0.5;
+	velocity_controller.Ki = 20;
 }
 
 void MotorCtrl::Start(){
-	target = 0;
 	current_controller.reset();
+	velocity_controller.reset();
+	position_controller.reset();
 	motor.reset();
+
 	HAL_ADCEx_Calibration_Start(adc_master, ADC_SINGLE_ENDED);
 	HAL_ADCEx_Calibration_Start(adc_slave, ADC_SINGLE_ENDED);
 	HAL_ADC_Start(adc_slave);
@@ -83,9 +88,17 @@ void MotorCtrl::SetMode(Mode Mode){
 	switch(Mode){
 		case Mode::duty:
 			Control = &MotorCtrl::ControlDuty;
+			target = 0;
 			break;
 		case Mode::current:
 			Control = &MotorCtrl::ControlCurrent;
+			target = 0;
+			break;
+		case Mode::velocity:
+			target = 0;
+			break;
+		case Mode::position:
+			target = data.position_pulse;
 			break;
 		default:
 			Control = &MotorCtrl::ControlDisable;
@@ -101,12 +114,12 @@ MotorCtrl::Mode MotorCtrl::GetMode(void)const{
 }
 
 void MotorCtrl::SetTarget(Float_Type target){
-	this->target = target;
 	switch(mode){
 		case Mode::duty:
 			SetDuty(target*1000);
 			break;
 		case Mode::current:
+			target_current = target;
 			break;
 		default:
 			;
@@ -114,12 +127,24 @@ void MotorCtrl::SetTarget(Float_Type target){
 }
 
 Float_Type MotorCtrl::GetTarget()const{
-	return target;
+	switch(mode){
+		case Mode::duty:
+			return 0;
+		case Mode::current:
+			return target_current;
+		default:
+			;
+	}
 }
 
 void MotorCtrl::ControlCurrent(){
-	SetVoltage(current_controller.update(target-data.current));
+	SetVoltage(current_controller.update(target_current-data.current));
 }
+
+void MotorCtrl::ControlVelocity(){
+	target_current = velocity_controller.update(target_velocity-data.velocity);
+}
+void MotorCtrl::ControlPosition(){}
 
 void MotorCtrl::invoke(uint16_t* buf){
 	dwt::Frequency freq;
@@ -129,12 +154,41 @@ void MotorCtrl::invoke(uint16_t* buf){
 		sum+=buf[i]-buf[i+1];
 	}
 	data.current = sum*3.3/4096/20/ADC_DATA_SIZE*1000;
-    int16_t pulse = static_cast<int16_t>(TIM2->CNT);
-    TIM2->CNT = 0;
-	data.velocity = pulse * Kh;
-    data.position_pulse += pulse;
 	(this->*Control)();
 	if(monitor){
 		CDC_Transmit_FS((uint8_t*)buf,ADC_DATA_SIZE*sizeof(uint16_t)*2);
 	}
+}
+
+void MotorCtrl::update(){
+	static uint16_t i;
+	static uint32_t sum;
+	static constexpr uint16_t SAMPLE_SIZE=2000;
+	static Float_Type sample[SAMPLE_SIZE];
+
+    int16_t pulse = static_cast<int16_t>(TIM2->CNT);
+    TIM2->CNT = 0;
+	data.velocity = pulse * Kh;
+    data.position_pulse += pulse;
+
+    sum -= sample[i];
+    sample[i]=data.current*data.current;
+    sum += sample[i];
+	if(i<SAMPLE_SIZE-1) i++;
+	else i=0;
+
+	switch (mode) {
+		case MotorCtrl::Mode::position:
+			ControlPosition();
+		case MotorCtrl::Mode::velocity:
+			ControlVelocity();
+	}
+
+	//current limit
+	Float_Type amp = std::abs(target_current);
+	bool sign = std::signbit(target_current);
+	if(amp > current_lim_pusled) amp = current_lim_pusled;
+//	if(sum > current_lim_continuous*current_lim_continuous*SAMPLE_SIZE && amp>current_lim_continuous) amp = current_lim_continuous;
+	if(sum > current_lim_continuous*current_lim_continuous*SAMPLE_SIZE && amp>current_lim_continuous) amp = 0;
+	target_current = sign?-amp:amp;
 }

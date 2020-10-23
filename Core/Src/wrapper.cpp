@@ -43,21 +43,7 @@ extern "C" {
      */
 	void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	{
-//	  if(htim->Instance == TIM3)
-//	  {
-//	  }
-		static uint32_t tick = 0;
-		switch (control.GetMode()) {
-			case MotorCtrl::Mode::current:
-				if(control.GetTarget() > 20.0f)
-				{
-					if(HAL_GetTick()-tick > 1000) control.SetTarget(0);
-				}
-				else tick = HAL_GetTick();
-				break;
-			default:
-				break;
-		}
+		control.update();
 	}
 };
 
