@@ -13,8 +13,16 @@
 #include "mscmd.h"
 
 #include "dwt.hpp"
+#include "CanClass.hpp"
 
 MotorCtrl control;
+CanClass can;
+
+namespace{
+	uint32_t can_test=1216;
+	uint32_t id = 0x200;
+}
+
 
 extern "C" {
 	void cdc_puts(char *str);
@@ -44,6 +52,19 @@ extern "C" {
 	void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	{
 		control.update();
+		can.send(can_test,0x200);
+		can.led_process();
+	}
+	void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
+	{
+		uint8_t cmd;
+//		if(can.receive(cmd, id+1)){
+//			switch(cmd){
+//			case:
+//				break;
+//			}
+//		}
+		can.endit();//割り込み終了
 	}
 };
 
@@ -210,6 +231,7 @@ static MSCMD_COMMAND_TABLE table[] = {
 void main_cpp(void)
 {
 	dwt::init();
+	can.init(id);
 
 	char buf[MSCONF_MAX_INPUT_LENGTH];
 	MICROSHELL ms;
