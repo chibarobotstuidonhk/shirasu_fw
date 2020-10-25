@@ -8,16 +8,15 @@
 #ifndef FLASH_H_
 #define FLASH_H_
 
-#include "stm32f1xx_hal.h"
+#include "main.h"
 #include <cstring>
 
-#define DATA_PAGE_ADDR 0x0800fc00
+#define DATA_PAGE_ADDR 0x0801FC00
 
 void _eraseFlash(void)
 {
     FLASH_EraseInitTypeDef erase;
     erase.TypeErase = FLASH_TYPEERASE_PAGES;
-    erase.Banks = FLASH_BANK_1;
     erase.PageAddress = DATA_PAGE_ADDR;
     erase.NbPages = 1;
 

@@ -98,11 +98,13 @@ bool CanClass::receive(T &data,uint32_t id)
 			}
 
 			data = _e.data;
+			return true;
 		}
 		else{
 			rx_flag=1;
 		}
 	}
+	return false;
 }
 
 #endif /* CANCLASS_HPP_ */

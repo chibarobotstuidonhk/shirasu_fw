@@ -27,6 +27,9 @@ struct DataStruct{
 class MotorCtrl {
 public:
 	enum class Mode {duty,current,velocity,position,disable};
+	void ReadConfig();
+	void WriteConfig();
+	uint32_t can_id;
 private:
 	using MemberFunc = void (MotorCtrl::*)(void);
 

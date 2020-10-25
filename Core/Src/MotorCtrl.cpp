@@ -9,6 +9,7 @@
 #include "dwt.hpp"
 #include "stdio.h"
 #include <cmath>
+#include "conf.hpp"
 
 extern "C"{
 	uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len);
@@ -19,6 +20,8 @@ void MotorCtrl::Init(TIM_HandleTypeDef* tim_pwm,ADC_HandleTypeDef* adc_master,AD
 	this->adc_master = adc_master;
 	this->adc_slave = adc_slave;
 	ccr_max = __HAL_TIM_GET_AUTORELOAD(tim_pwm);
+
+	ReadConfig();
 
 	motor.R = 0.289256;
 	motor.L = 0.000144628;
@@ -191,4 +194,15 @@ void MotorCtrl::update(){
 //	if(sum > current_lim_continuous*current_lim_continuous*SAMPLE_SIZE && amp>current_lim_continuous) amp = current_lim_continuous;
 	if(sum > current_lim_continuous*current_lim_continuous*SAMPLE_SIZE && amp>current_lim_continuous) amp = 0;
 	target_current = sign?-amp:amp;
+}
+
+void MotorCtrl::ReadConfig()
+{
+	readConf();
+	this->can_id = confStruct.can_id_cmd;
+}
+
+void MotorCtrl::WriteConfig()
+{
+    confStruct.can_id_cmd = this->can_id;
 }
