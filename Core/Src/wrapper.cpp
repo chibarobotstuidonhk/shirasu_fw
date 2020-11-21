@@ -45,12 +45,29 @@ extern "C" {
 	void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 	{
 		uint8_t cmd;
-		if(can.receive(cmd,control.can_id)){
+		Float_Type data;
+		if(can.receive(data,control.can_id+1)){
+			control.SetTarget(data);
+		}
+		else if(can.receive(cmd,control.can_id)){
 			switch(cmd){
 			case 0:
+				control.SetMode(MotorCtrl::Mode::disable);
+				break;
+			case 1:
+				break;//TODO:事前に設定したモード
+			case 2:
+				control.SetMode(MotorCtrl::Mode::current);
+				break;
+			case 3:
+				control.SetMode(MotorCtrl::Mode::velocity);
+				break;
+			case 4:
+				control.SetMode(MotorCtrl::Mode::position);
 				break;
 			}
 		}
+
 		can.endit();//割り込み終了
 	}
 };
@@ -60,9 +77,6 @@ void main_cpp(void)
 	dwt::init();
 	can.init(control.can_id);
 	shell::init();
-
-	HAL_GPIO_TogglePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin);
-	HAL_GPIO_WritePin(USB_PULLUP_GPIO_Port, USB_PULLUP_Pin,GPIO_PIN_SET);
 
 	control.Init(&htim15,&hadc1,&hadc2);
 	HAL_TIM_Base_Start_IT(&htim3);

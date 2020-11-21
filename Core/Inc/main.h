@@ -62,14 +62,16 @@ void main_cpp(void);
 /* Private defines -----------------------------------------------------------*/
 #define LED_CAN_Pin GPIO_PIN_13
 #define LED_CAN_GPIO_Port GPIOC
-#define LED_GREEN_Pin GPIO_PIN_1
+#define LED_GREEN_Pin GPIO_PIN_12
 #define LED_GREEN_GPIO_Port GPIOB
-#define LED_YELLOW_Pin GPIO_PIN_12
+#define LED_YELLOW_Pin GPIO_PIN_13
 #define LED_YELLOW_GPIO_Port GPIOB
-#define LED_RED_Pin GPIO_PIN_13
+#define LED_RED_Pin GPIO_PIN_14
 #define LED_RED_GPIO_Port GPIOB
-#define USB_PULLUP_Pin GPIO_PIN_10
-#define USB_PULLUP_GPIO_Port GPIOA
+#define DIN_A_Pin GPIO_PIN_8
+#define DIN_A_GPIO_Port GPIOA
+#define DIN_B_Pin GPIO_PIN_10
+#define DIN_B_GPIO_Port GPIOA
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */

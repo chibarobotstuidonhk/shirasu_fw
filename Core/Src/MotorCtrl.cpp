@@ -10,6 +10,7 @@
 #include "stdio.h"
 #include <cmath>
 #include "conf.hpp"
+#include "main.h"
 
 extern "C"{
 	uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len);
@@ -106,8 +107,16 @@ void MotorCtrl::SetMode(Mode Mode){
 		default:
 			Control = &MotorCtrl::ControlDisable;
 	}
-	if(Mode != Mode::disable) Start();
-	else Stop();
+	if(Mode != Mode::disable){
+		Start();
+		HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(LED_YELLOW_GPIO_Port, LED_YELLOW_Pin, GPIO_PIN_SET);
+	}
+	else{
+		Stop();
+		HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(LED_YELLOW_GPIO_Port, LED_YELLOW_Pin, GPIO_PIN_RESET);
+	}
 	mode = Mode;
 	//TODO:ES信号を見る
 }
@@ -191,7 +200,6 @@ void MotorCtrl::update(){
 	Float_Type amp = std::abs(target_current);
 	bool sign = std::signbit(target_current);
 	if(amp > current_lim_pusled) amp = current_lim_pusled;
-//	if(sum > current_lim_continuous*current_lim_continuous*SAMPLE_SIZE && amp>current_lim_continuous) amp = current_lim_continuous;
 	if(sum > current_lim_continuous*current_lim_continuous*SAMPLE_SIZE && amp>current_lim_continuous) amp = 0;
 	target_current = sign?-amp:amp;
 }
