@@ -32,6 +32,8 @@ void MotorCtrl::Init(TIM_HandleTypeDef* tim_pwm,ADC_HandleTypeDef* adc_master,AD
 
 	velocity_controller.Kp = 0.5;
 	velocity_controller.Ki = 20;
+
+	SetMode(Mode::disable);
 }
 
 void MotorCtrl::Start(){
@@ -66,16 +68,17 @@ void MotorCtrl::SetDuty(int d){
         return;
     }
 
-    if (0 < d)
+    else if (0 < d)
     {
-    	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_1, d*ccr_max/1000);
-    	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_2, 0);
+    	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_1, 0);
+    	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_2, d*ccr_max/1000);
     }
     else if (d < 0)
     {
-    	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_1, 0);
-    	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_2, -d*ccr_max/1000);
+    	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_1, -d*ccr_max/1000);
+    	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_2, 0);
     }
+
     else
     {
     	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_1, 0);
@@ -165,11 +168,11 @@ void MotorCtrl::invoke(uint16_t* buf){
 	for(int i=0;i<ADC_DATA_SIZE*2;i+=2){
 		sum+=buf[i]-buf[i+1];
 	}
-	data.current = sum*3.3/4096/20/ADC_DATA_SIZE*1000;
+	data.current = sum*3.3/4096/50/ADC_DATA_SIZE*2000;
 	(this->*Control)();
-	if(monitor){
-		CDC_Transmit_FS((uint8_t*)buf,ADC_DATA_SIZE*sizeof(uint16_t)*2);
-	}
+//	if(monitor){
+//		CDC_Transmit_FS((uint8_t*)buf,ADC_DATA_SIZE*sizeof(uint16_t)*2);
+//	}
 }
 
 void MotorCtrl::update(){
@@ -207,10 +210,10 @@ void MotorCtrl::update(){
 void MotorCtrl::ReadConfig()
 {
 	readConf();
-	this->can_id = confStruct.can_id_cmd;
+	this->can_id = confStruct.can_id;
 }
 
 void MotorCtrl::WriteConfig()
 {
-    confStruct.can_id_cmd = this->can_id;
+    confStruct.can_id = this->can_id;
 }

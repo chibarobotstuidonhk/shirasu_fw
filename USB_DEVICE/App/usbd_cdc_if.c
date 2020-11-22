@@ -318,7 +318,9 @@ char cdc_getc(){
 	while(receive_pos==read_pos){
 		HAL_Delay(50);
 	}
-	return received_data[read_pos++];
+	uint8_t character = received_data[read_pos++];
+	if(character >= 'a' && character <=  'z') character -= 32;
+	return character;
 }
 void cdc_puts(char *str){
 	while(*str){

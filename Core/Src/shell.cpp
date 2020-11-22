@@ -150,6 +150,28 @@ namespace{
 		return 0;
 	}
 
+
+	MSCMD_USER_RESULT usrcmd_id(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
+	{
+		USER_OBJECT *uo = (USER_OBJECT *)usrobj;
+		char buf[MSCONF_MAX_INPUT_LENGTH];
+		int argc;
+		msopt_get_argc(msopt, &argc);
+		if(argc == 1){
+			char str[256]={};
+			sprintf(str,"0X%3x\r\n",control.can_id);
+			uo->puts(str);
+		}
+		else if(argc == 2){
+			msopt_get_argv(msopt, 1, buf, sizeof(buf));
+			uint16_t id;
+			sscanf(buf,"%3x",&id);
+			control.can_id = id;
+		}
+		else cdc_puts("too many arguments!\r\n");
+		return 0;
+	}
+
 	MSCMD_USER_RESULT usrcmd_mode(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
 	{
 		USER_OBJECT *uo = (USER_OBJECT *)usrobj;
@@ -177,12 +199,11 @@ namespace{
 		}
 		else if(argc == 2){
 			msopt_get_argv(msopt, 1, buf, sizeof(buf));
-			if(strcmp(buf,"duty")==0) control.SetMode(MotorCtrl::Mode::duty);
-			else if(strcmp(buf,"current")==0) control.SetMode(MotorCtrl::Mode::current);
-			else if(strcmp(buf,"velocity")==0) control.SetMode(MotorCtrl::Mode::velocity);
-			else if(strcmp(buf,"position")==0) control.SetMode(MotorCtrl::Mode::position);
+			if(strcmp(buf,"DUT")==0) control.SetMode(MotorCtrl::Mode::duty);
+			else if(strcmp(buf,"CUR")==0) control.SetMode(MotorCtrl::Mode::current);
+			else if(strcmp(buf,"VEL")==0) control.SetMode(MotorCtrl::Mode::velocity);
+			else if(strcmp(buf,"POS")==0) control.SetMode(MotorCtrl::Mode::position);
 			else control.SetMode(MotorCtrl::Mode::disable);
-
 		}
 		else cdc_puts("too many arguments!\r\n");
 		return 0;
@@ -190,18 +211,21 @@ namespace{
 
 	MSCMD_USER_RESULT usrcmd_flash(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
 	{
+		control.WriteConfig();
 		writeConf();
+		return 0;
 	}
 
 	MSCMD_COMMAND_TABLE table[] = {
-		{	"mode"		,	usrcmd_mode },
-		{   "help",     usrcmd_help     },
+		{	"MODE"		,	usrcmd_mode },
+		{   "BID"    ,   usrcmd_id		},
+		{   "WCFG"    ,   usrcmd_flash	},
+		{   "HELP",     usrcmd_help     },
 		{   "?",        usrcmd_help     },
 		{   "t_led",  usrcmd_led_toggle	},
-		{ 	"target" ,   usrcmd_target	},
+		{ 	"TARGET" ,   usrcmd_target	},
 		{	"monitor", usrcmd_monitor	},
 		{   "get"    ,   usrcmd_get		},
-		{   "WCFG"    ,   usrcmd_flash	},
 	};
 
 }

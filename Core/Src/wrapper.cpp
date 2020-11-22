@@ -39,7 +39,10 @@ extern "C" {
 	void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	{
 		control.update();
-//		can.send(can_test,0x200);
+//		can.send(control.data.current,0x7fc);voltage
+		can.send(control.data.current,0x7fd);
+//		can.send(control.data.current,0x7fe);velocity
+//		can.send(control.data.current,0x7ff);positon
 		can.led_process();
 	}
 	void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
@@ -75,10 +78,11 @@ extern "C" {
 void main_cpp(void)
 {
 	dwt::init();
-	can.init(control.can_id);
 	shell::init();
 
+	HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_SET);
 	control.Init(&htim15,&hadc1,&hadc2);
+	can.init(control.can_id);
 	HAL_TIM_Base_Start_IT(&htim3);
 	HAL_TIM_Encoder_Start(&htim2,TIM_CHANNEL_ALL);
 

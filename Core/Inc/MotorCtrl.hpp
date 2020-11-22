@@ -112,7 +112,7 @@ public:
 	void invoke(uint16_t* buf);
 	void update();
 	static constexpr uint16_t ADC_DATA_SIZE=256;
-	static constexpr Float_Type T=0.000125;//TODO:set automatically
+	static constexpr Float_Type T=6.25e-5;//TODO:set automatically
 	static constexpr Float_Type Kh = 2 * M_PI / (400 * T); // エンコーダ入力[pulse/ctrl]を[rad/s]に変換する係数．kg / Tc．
 	static constexpr Float_Type current_lim_pusled=40;
 	static constexpr Float_Type current_lim_continuous=12;

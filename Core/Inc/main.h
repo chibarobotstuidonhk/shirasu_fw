@@ -60,8 +60,6 @@ void main_cpp(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define LED_CAN_Pin GPIO_PIN_13
-#define LED_CAN_GPIO_Port GPIOC
 #define LED_GREEN_Pin GPIO_PIN_12
 #define LED_GREEN_GPIO_Port GPIOB
 #define LED_YELLOW_Pin GPIO_PIN_13
@@ -72,6 +70,8 @@ void main_cpp(void);
 #define DIN_A_GPIO_Port GPIOA
 #define DIN_B_Pin GPIO_PIN_10
 #define DIN_B_GPIO_Port GPIOA
+#define LED_CAN_Pin GPIO_PIN_4
+#define LED_CAN_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
