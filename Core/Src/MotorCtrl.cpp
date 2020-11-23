@@ -30,6 +30,11 @@ void MotorCtrl::Init(TIM_HandleTypeDef* tim_pwm,ADC_HandleTypeDef* adc_master,AD
 	Float_Type pole = motor.R / motor.L;
 	current_controller.Ki = pole * current_controller.Kp;
 
+	HAL_ADCEx_Calibration_Start(adc_master, ADC_SINGLE_ENDED);
+	HAL_ADCEx_Calibration_Start(adc_slave, ADC_SINGLE_ENDED);
+	HAL_ADC_Start(adc_slave);
+	HAL_ADCEx_MultiModeStart_DMA(adc_master, &adc_buff[0].ADCDualConvertedValue, MotorCtrl::ADC_DATA_SIZE*2);
+
 	SetMode(Mode::disable);
 }
 
@@ -38,11 +43,6 @@ void MotorCtrl::Start(){
 	velocity_controller.reset();
 	position_controller.reset();
 	motor.reset();
-
-	HAL_ADCEx_Calibration_Start(adc_master, ADC_SINGLE_ENDED);
-	HAL_ADCEx_Calibration_Start(adc_slave, ADC_SINGLE_ENDED);
-	HAL_ADC_Start(adc_slave);
-	HAL_ADCEx_MultiModeStart_DMA(adc_master, &adc_buff[0].ADCDualConvertedValue, MotorCtrl::ADC_DATA_SIZE*2);
 
 	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_1, 1);
 	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_2, 1);
@@ -53,8 +53,6 @@ void MotorCtrl::Start(){
 void MotorCtrl::Stop(){
 	HAL_TIM_PWM_Stop(tim_pwm, TIM_CHANNEL_1);
 	HAL_TIM_PWM_Stop(tim_pwm, TIM_CHANNEL_2);
-	HAL_ADCEx_MultiModeStop_DMA(adc_master);
-	HAL_ADC_Stop(adc_slave);
 }
 
 // @param d duty ratio multiplied by 1000, where 1000 represents 100% duty ratio.
@@ -99,11 +97,11 @@ void MotorCtrl::SetMode(Mode Mode){
 			target_current = 0;
 			break;
 		case Mode::velocity:
-			Control = &MotorCtrl::ControlCurrent;
+			Control = &MotorCtrl::ControlVelocity;
 			target_velocity = 0;
 			break;
 		case Mode::position:
-			Control = &MotorCtrl::ControlCurrent;
+			Control = &MotorCtrl::ControlPosition;
 			target_position_pulse = data.position_pulse;
 			break;
 		default:
@@ -160,7 +158,7 @@ Float_Type MotorCtrl::GetTarget()const{
 uint8_t MotorCtrl::SetCPR(Float_Type cpr)
 {
 	if(std::isfinite(cpr)){
-		Kh = 2 * M_PI / (cpr * Tc);
+		Kh = 2 * M_PI / (cpr * T);
 		return 0;
 	}
 	else return -1;
@@ -168,7 +166,7 @@ uint8_t MotorCtrl::SetCPR(Float_Type cpr)
 
 Float_Type MotorCtrl::GetCPR(void)
 {
-    return 2 * M_PI / (Kh * Tc);
+    return 2 * M_PI / (Kh * T);
 }
 
 // set proportional gain Kp
@@ -211,59 +209,56 @@ void MotorCtrl::ControlCurrent(){
 
 void MotorCtrl::ControlVelocity(){
 	target_current = velocity_controller.update(target_velocity-data.velocity);
+	ControlCurrent();
 }
 void MotorCtrl::ControlPosition(){}
 
 void MotorCtrl::invoke(uint16_t* buf){
 	dwt::Frequency freq;
 	dwt::ProcessTim tim;
+
+	//current
 	int32_t sum=0;
 	for(int i=0;i<ADC_DATA_SIZE*2;i+=2){
 		sum+=buf[i]-buf[i+1];
 	}
 	data.current = sum*3.3/4096/20/ADC_DATA_SIZE*1000;
-	(this->*Control)();
-//	if(monitor){
-//		CDC_Transmit_FS((uint8_t*)buf,ADC_DATA_SIZE*sizeof(uint16_t)*2);
-//	}
-}
 
-void MotorCtrl::update(){
 	static uint16_t i;
-	static uint32_t sum;
+	static uint32_t sum_i;
 	static constexpr uint16_t SAMPLE_SIZE=2000;
 	static Float_Type sample[SAMPLE_SIZE];
 
+	//velocity,position
     int16_t pulse = static_cast<int16_t>(TIM2->CNT);
     TIM2->CNT = 0;
 	data.velocity = pulse * Kh;
     data.position_pulse += pulse;
 
-    sum -= sample[i];
+    sum_i -= sample[i];
     sample[i]=data.current*data.current;
-    sum += sample[i];
+    sum_i += sample[i];
 	if(i<SAMPLE_SIZE-1) i++;
 	else i=0;
-
-	switch (mode) {
-		case MotorCtrl::Mode::position:
-			ControlPosition();
-		case MotorCtrl::Mode::velocity:
-			ControlVelocity();
-	}
 
 	//current limit
 	Float_Type amp = std::abs(target_current);
 	bool sign = std::signbit(target_current);
 	if(amp > current_lim_pusled) amp = current_lim_pusled;
-	if(sum > current_lim_continuous*current_lim_continuous*SAMPLE_SIZE && amp>current_lim_continuous) amp = 0;
+	if(sum_i > current_lim_continuous*current_lim_continuous*SAMPLE_SIZE && amp>current_lim_continuous) amp = 0;
 	target_current = sign?-amp:amp;
+
+	(this->*Control)();
+}
+
+void MotorCtrl::update(){
+
 }
 
 void MotorCtrl::ReadConfig()
 {
 	readConf();
-	this->can_id = confStruct.can_id;
+	can_id = confStruct.can_id;
 	SetCPR(confStruct.cpr);
 	SetKp(confStruct.Kp);
 	SetKi(confStruct.Ki);
@@ -271,7 +266,7 @@ void MotorCtrl::ReadConfig()
 
 void MotorCtrl::WriteConfig()
 {
-    confStruct.can_id = this->can_id;
+    confStruct.can_id = can_id;
     confStruct.cpr = GetCPR();
     confStruct.Kp = GetKp();
     confStruct.Ki = GetKi();

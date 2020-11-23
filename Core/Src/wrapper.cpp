@@ -81,6 +81,7 @@ void main_cpp(void)
 	shell::init();
 
 	HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_SET);
+
 	control.Init(&htim15,&hadc1,&hadc2);
 	can.init(control.can_id);
 	HAL_TIM_Base_Start_IT(&htim3);
