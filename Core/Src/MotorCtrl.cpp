@@ -30,9 +30,6 @@ void MotorCtrl::Init(TIM_HandleTypeDef* tim_pwm,ADC_HandleTypeDef* adc_master,AD
 	Float_Type pole = motor.R / motor.L;
 	current_controller.Ki = pole * current_controller.Kp;
 
-	velocity_controller.Kp = 0.5;
-	velocity_controller.Ki = 20;
-
 	SetMode(Mode::disable);
 }
 
@@ -95,17 +92,19 @@ void MotorCtrl::SetMode(Mode Mode){
 	switch(Mode){
 		case Mode::duty:
 			Control = &MotorCtrl::ControlDuty;
-			target = 0;
+			target_voltage = 0;
 			break;
 		case Mode::current:
 			Control = &MotorCtrl::ControlCurrent;
-			target = 0;
+			target_current = 0;
 			break;
 		case Mode::velocity:
-			target = 0;
+			Control = &MotorCtrl::ControlCurrent;
+			target_velocity = 0;
 			break;
 		case Mode::position:
-			target = data.position_pulse;
+			Control = &MotorCtrl::ControlCurrent;
+			target_position_pulse = data.position_pulse;
 			break;
 		default:
 			Control = &MotorCtrl::ControlDisable;
@@ -132,9 +131,13 @@ void MotorCtrl::SetTarget(Float_Type target){
 	switch(mode){
 		case Mode::duty:
 			SetDuty(target*1000);
+			target_voltage = target;
 			break;
 		case Mode::current:
 			target_current = target;
+			break;
+		case Mode::velocity:
+			target_velocity = target;
 			break;
 		default:
 			;
@@ -144,12 +147,62 @@ void MotorCtrl::SetTarget(Float_Type target){
 Float_Type MotorCtrl::GetTarget()const{
 	switch(mode){
 		case Mode::duty:
-			return 0;
+			return target_voltage;
 		case Mode::current:
 			return target_current;
+		case Mode::velocity:
+			return target_velocity;
 		default:
 			;
 	}
+}
+
+uint8_t MotorCtrl::SetCPR(Float_Type cpr)
+{
+	if(std::isfinite(cpr)){
+		Kh = 2 * M_PI / (cpr * Tc);
+		return 0;
+	}
+	else return -1;
+}
+
+Float_Type MotorCtrl::GetCPR(void)
+{
+    return 2 * M_PI / (Kh * Tc);
+}
+
+// set proportional gain Kp
+uint8_t MotorCtrl::SetKp(Float_Type kp)
+{
+    if (kp < 0 || !std::isfinite(kp)){
+    	velocity_controller.Kp = 0;
+    	return -1;
+    }
+
+    velocity_controller.Kp = kp;
+    return 0;
+}
+
+Float_Type MotorCtrl::GetKp(void)
+{
+    return velocity_controller.Kp;
+}
+
+// integral gain
+uint8_t MotorCtrl::SetKi(Float_Type ki)
+{
+    if (ki < 0 || !std::isfinite(ki)){
+    	velocity_controller.Ki = 0;
+    	return -1;
+    }
+
+    velocity_controller.Ki = ki;
+    return 0;
+}
+
+Float_Type MotorCtrl::GetKi(void)
+{
+    return velocity_controller.Ki;
 }
 
 void MotorCtrl::ControlCurrent(){
@@ -168,7 +221,7 @@ void MotorCtrl::invoke(uint16_t* buf){
 	for(int i=0;i<ADC_DATA_SIZE*2;i+=2){
 		sum+=buf[i]-buf[i+1];
 	}
-	data.current = sum*3.3/4096/50/ADC_DATA_SIZE*2000;
+	data.current = sum*3.3/4096/20/ADC_DATA_SIZE*1000;
 	(this->*Control)();
 //	if(monitor){
 //		CDC_Transmit_FS((uint8_t*)buf,ADC_DATA_SIZE*sizeof(uint16_t)*2);
@@ -211,9 +264,15 @@ void MotorCtrl::ReadConfig()
 {
 	readConf();
 	this->can_id = confStruct.can_id;
+	SetCPR(confStruct.cpr);
+	SetKp(confStruct.Kp);
+	SetKi(confStruct.Ki);
 }
 
 void MotorCtrl::WriteConfig()
 {
     confStruct.can_id = this->can_id;
+    confStruct.cpr = GetCPR();
+    confStruct.Kp = GetKp();
+    confStruct.Ki = GetKi();
 }

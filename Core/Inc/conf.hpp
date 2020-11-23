@@ -11,6 +11,9 @@
 struct ConfStruct
 {
         uint16_t can_id;
+        double cpr;
+        double Kp;
+        double Ki;
 };
 
 extern ConfStruct confStruct;

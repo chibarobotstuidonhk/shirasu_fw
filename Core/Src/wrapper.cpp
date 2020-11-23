@@ -41,7 +41,7 @@ extern "C" {
 		control.update();
 //		can.send(control.data.current,0x7fc);voltage
 		can.send(control.data.current,0x7fd);
-//		can.send(control.data.current,0x7fe);velocity
+		can.send(control.data.velocity,0x7fe);
 //		can.send(control.data.current,0x7ff);positon
 		can.led_process();
 	}

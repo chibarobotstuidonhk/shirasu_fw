@@ -133,7 +133,7 @@ namespace{
 			else if(strcmp(buf,"process")==0){
 				sprintf(str,"process time:%f[ms]\r\n",dwt::ProcessTim::get_process_time());
 			}
-			else if(strcmp(buf,"frequency")==0){
+			else if(strcmp(buf,"FREQ")==0){
 				sprintf(str,"frequency:%f[Hz]\r\n",dwt::Frequency::get_process_frequency());
 			}
 			else if(strcmp(buf,"velocity")==0){
@@ -151,7 +151,7 @@ namespace{
 	}
 
 
-	MSCMD_USER_RESULT usrcmd_id(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
+	MSCMD_USER_RESULT usrcmd_bid(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
 	{
 		USER_OBJECT *uo = (USER_OBJECT *)usrobj;
 		char buf[MSCONF_MAX_INPUT_LENGTH];
@@ -171,6 +171,92 @@ namespace{
 		else cdc_puts("too many arguments!\r\n");
 		return 0;
 	}
+
+	MSCMD_USER_RESULT usrcmd_ppr(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
+	{
+		USER_OBJECT *uo = (USER_OBJECT *)usrobj;
+		char buf[MSCONF_MAX_INPUT_LENGTH];
+		int argc;
+		msopt_get_argc(msopt, &argc);
+		if(argc == 1){
+			char str[256]={};
+			sprintf(str,"%f\r\n",control.GetCPR()/4);
+			uo->puts(str);
+		}
+		else if(argc == 2){
+			msopt_get_argv(msopt, 1, buf, sizeof(buf));
+			Float_Type ppr;
+			sscanf(buf,"%f",&ppr);
+			control.SetCPR(ppr*4);
+		}
+		else cdc_puts("too many arguments!\r\n");
+		return 0;
+	}
+
+	MSCMD_USER_RESULT usrcmd_cpr(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
+	{
+		USER_OBJECT *uo = (USER_OBJECT *)usrobj;
+		char buf[MSCONF_MAX_INPUT_LENGTH];
+		int argc;
+		msopt_get_argc(msopt, &argc);
+		if(argc == 1){
+			char str[256]={};
+			sprintf(str,"%f\r\n",control.GetCPR());
+			uo->puts(str);
+		}
+		else if(argc == 2){
+			msopt_get_argv(msopt, 1, buf, sizeof(buf));
+			Float_Type cpr;
+			sscanf(buf,"%f",&cpr);
+			control.SetCPR(cpr);
+		}
+		else cdc_puts("too many arguments!\r\n");
+		return 0;
+	}
+
+	MSCMD_USER_RESULT usrcmd_kpr(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
+	{
+		USER_OBJECT *uo = (USER_OBJECT *)usrobj;
+		char buf[MSCONF_MAX_INPUT_LENGTH];
+		int argc;
+		msopt_get_argc(msopt, &argc);
+		if(argc == 1){
+			char str[256]={};
+			sprintf(str,"%f\r\n",control.GetKp());
+			uo->puts(str);
+		}
+		else if(argc == 2){
+			msopt_get_argv(msopt, 1, buf, sizeof(buf));
+			Float_Type kpr;
+			sscanf(buf,"%f",&kpr);
+			control.SetKp(kpr);
+		}
+		else cdc_puts("too many arguments!\r\n");
+		return 0;
+	}
+
+	MSCMD_USER_RESULT usrcmd_kit(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
+	{
+		USER_OBJECT *uo = (USER_OBJECT *)usrobj;
+		char buf[MSCONF_MAX_INPUT_LENGTH];
+		int argc;
+		msopt_get_argc(msopt, &argc);
+		if(argc == 1){
+			char str[256]={};
+			sprintf(str,"%f\r\n",control.GetCPR());
+			uo->puts(str);
+		}
+		else if(argc == 2){
+			msopt_get_argv(msopt, 1, buf, sizeof(buf));
+			Float_Type kit;
+			sscanf(buf,"%f",&kit);
+			control.SetCPR(kit);
+		}
+		else cdc_puts("too many arguments!\r\n");
+		return 0;
+	}
+
+
 
 	MSCMD_USER_RESULT usrcmd_mode(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
 	{
@@ -218,14 +304,18 @@ namespace{
 
 	MSCMD_COMMAND_TABLE table[] = {
 		{	"MODE"		,	usrcmd_mode },
-		{   "BID"    ,   usrcmd_id		},
+		{   "BID"    ,   usrcmd_bid		},
+		{   "PPR"    ,   usrcmd_ppr	},
+		{   "CPR"    ,   usrcmd_cpr	},
+		{   "KPR"    ,   usrcmd_kpr	},
+		{   "KIT"    ,   usrcmd_kit	},
 		{   "WCFG"    ,   usrcmd_flash	},
 		{   "HELP",     usrcmd_help     },
 		{   "?",        usrcmd_help     },
 		{   "t_led",  usrcmd_led_toggle	},
 		{ 	"TARGET" ,   usrcmd_target	},
 		{	"monitor", usrcmd_monitor	},
-		{   "get"    ,   usrcmd_get		},
+		{   "GET"    ,   usrcmd_get		},
 	};
 
 }
