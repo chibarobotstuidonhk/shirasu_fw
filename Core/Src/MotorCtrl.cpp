@@ -224,29 +224,29 @@ void MotorCtrl::invoke(uint16_t* buf){
 	}
 	data.current = sum*3.3/4096/20/ADC_DATA_SIZE*1000;
 
-	static uint16_t i;
-	static uint32_t sum_i;
-	static constexpr uint16_t SAMPLE_SIZE=2000;
-	static Float_Type sample[SAMPLE_SIZE];
-
-	//velocity,position
-    int16_t pulse = static_cast<int16_t>(TIM2->CNT);
-    TIM2->CNT = 0;
-	data.velocity = pulse * Kh;
-    data.position_pulse += pulse;
-
-    sum_i -= sample[i];
-    sample[i]=data.current*data.current;
-    sum_i += sample[i];
-	if(i<SAMPLE_SIZE-1) i++;
-	else i=0;
-
-	//current limit
-	Float_Type amp = std::abs(target_current);
-	bool sign = std::signbit(target_current);
-	if(amp > current_lim_pusled) amp = current_lim_pusled;
-	if(sum_i > current_lim_continuous*current_lim_continuous*SAMPLE_SIZE && amp>current_lim_continuous) amp = 0;
-	target_current = sign?-amp:amp;
+//	static uint16_t i;
+//	static uint32_t sum_i;
+//	static constexpr uint16_t SAMPLE_SIZE=2000;
+//	static Float_Type sample[SAMPLE_SIZE];
+//
+//	//velocity,position
+//    int16_t pulse = static_cast<int16_t>(TIM2->CNT);
+//    TIM2->CNT = 0;
+//	data.velocity = pulse * Kh;
+//    data.position_pulse += pulse;
+//
+//    sum_i -= sample[i];
+//    sample[i]=data.current*data.current;
+//    sum_i += sample[i];
+//	if(i<SAMPLE_SIZE-1) i++;
+//	else i=0;
+//
+//	//current limit
+//	Float_Type amp = std::abs(target_current);
+//	bool sign = std::signbit(target_current);
+//	if(amp > current_lim_pusled) amp = current_lim_pusled;
+//	if(sum_i > current_lim_continuous*current_lim_continuous*SAMPLE_SIZE && amp>current_lim_continuous) amp = 0;
+//	target_current = sign?-amp:amp;
 
 	(this->*Control)();
 }

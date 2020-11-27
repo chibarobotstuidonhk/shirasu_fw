@@ -82,7 +82,6 @@ private:
 	Float_Type target=0;
 	Float_Type voltage=0;
 
-	Float_Type supply_voltage=20;	//TODO:measure supply voltage
 	PI current_controller;
 	PI velocity_controller;
 	PI position_controller;
@@ -99,6 +98,8 @@ private:
 	void Stop();
 public:
 	DataStruct data;
+	Float_Type supply_voltage=20;
+	Float_Type temperature=25;
 	Float_Type target_voltage;
 	Float_Type target_current;
 	Float_Type target_velocity;
@@ -122,6 +123,10 @@ public:
 
 	void ControlVelocity();
 	void ControlPosition();
+	uint8_t SetVSP(Float_Type vsp);
+	Float_Type GetVSP(void);
+	uint8_t SetTEMP(Float_Type temp);
+	Float_Type GetTEMP(void);
 	uint8_t SetCPR(Float_Type cpr);
 	Float_Type GetCPR(void);
 	uint8_t SetKp(Float_Type kp);

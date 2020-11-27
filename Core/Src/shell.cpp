@@ -256,6 +256,36 @@ namespace{
 		return 0;
 	}
 
+	MSCMD_USER_RESULT usrcmd_vsp(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
+	{
+		USER_OBJECT *uo = (USER_OBJECT *)usrobj;
+		char buf[MSCONF_MAX_INPUT_LENGTH];
+		int argc;
+		msopt_get_argc(msopt, &argc);
+		if(argc == 1){
+			char str[256]={};
+			sprintf(str,"%f\r\n",control.supply_voltage);
+			uo->puts(str);
+		}
+		else cdc_puts("too many arguments!\r\n");
+		return 0;
+	}
+
+	MSCMD_USER_RESULT usrcmd_temp(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
+	{
+		USER_OBJECT *uo = (USER_OBJECT *)usrobj;
+		char buf[MSCONF_MAX_INPUT_LENGTH];
+		int argc;
+		msopt_get_argc(msopt, &argc);
+		if(argc == 1){
+			char str[256]={};
+			sprintf(str,"%f\r\n",control.temperature);
+			uo->puts(str);
+		}
+		else cdc_puts("too many arguments!\r\n");
+		return 0;
+	}
+
 
 
 	MSCMD_USER_RESULT usrcmd_mode(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
@@ -309,6 +339,8 @@ namespace{
 		{   "CPR"    ,   usrcmd_cpr	},
 		{   "KPR"    ,   usrcmd_kpr	},
 		{   "KIT"    ,   usrcmd_kit	},
+		{	"VSP"	,	 usrcmd_vsp},
+		{	"TEMP"	,	usrcmd_temp},
 		{   "WCFG"    ,   usrcmd_flash	},
 		{   "HELP",     usrcmd_help     },
 		{   "?",        usrcmd_help     },

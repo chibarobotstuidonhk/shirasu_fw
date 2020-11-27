@@ -31,20 +31,31 @@ extern "C" {
 	{
 		control.invoke(control.adc_buff[0].ADCConvertedValue);
 	}
-    /**
-     * @brief
-     * This is the workhorse of the md201x.
-     * this handler is called @ 1 kHz.
-     */
+
 	void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	{
-		control.update();
+//		control.update();
 //		can.send(control.data.current,0x7fc);voltage
-		can.send(control.data.current,0x7fd);
-		can.send(control.data.velocity,0x7fe);
+//		can.send(control.data.current,0x7fd);
+//		can.send(control.data.velocity,0x7fe);
 //		can.send(control.data.current,0x7ff);positon
+
+		HAL_ADCEx_InjectedStart(&hadc2);
+		HAL_ADCEx_InjectedStart(&hadc1);
+		if(HAL_ADCEx_InjectedPollForConversion(&hadc1,100)==HAL_OK){
+			uint32_t adc_voltage = HAL_ADCEx_InjectedGetValue(&hadc1,1);
+			control.supply_voltage = adc_voltage*3.3*10/4096;
+			uint32_t adc_temp = HAL_ADCEx_InjectedGetValue(&hadc2,1);
+			double B = 3434;
+			double R_25 = 10e3;
+			double R_inf = R_25*exp(-B/(25+173.15));
+			double R_load = 3.3e3;
+			double R_measure = (4096*R_load)/(double)adc_temp - R_load;
+			control.temperature = B/log(R_measure/R_inf) - 173.15;
+		}
 		can.led_process();
 	}
+
 	void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 	{
 		uint8_t cmd;
