@@ -100,21 +100,18 @@ namespace{
 		char buf[MSCONF_MAX_INPUT_LENGTH];
 		int argc;
 		msopt_get_argc(msopt, &argc);
-		control.monitor = true;
-		if(argc == 3){
-			msopt_get_argv(msopt, 2, buf, sizeof(buf));
-			uint32_t ms;
-			sscanf(buf,"%d",&ms);
-			HAL_Delay(ms);
+		if(argc == 1){
+			char str[256];
+			sprintf(str,"%d\r\n",control.monitor);
+			uo->puts(str);
 		}
-		if(argc >= 2){
+		else if(argc == 2){
 			msopt_get_argv(msopt, 1, buf, sizeof(buf));
-			double target;
-			sscanf(buf,"%lf",&target);
-			control.SetTarget(target);
+			bool monitor;
+			sscanf(buf,"%d",&monitor);
+			control.monitor = monitor;
 		}
-		while(cdc_getc()!='\r');
-		control.monitor = false;
+		else cdc_puts("too many arguments!\r\n");
 		return 0;
 	}
 
@@ -243,14 +240,14 @@ namespace{
 		msopt_get_argc(msopt, &argc);
 		if(argc == 1){
 			char str[256]={};
-			sprintf(str,"%f\r\n",control.GetCPR());
+			sprintf(str,"%f\r\n",control.GetKi());
 			uo->puts(str);
 		}
 		else if(argc == 2){
 			msopt_get_argv(msopt, 1, buf, sizeof(buf));
 			Float_Type kit;
 			sscanf(buf,"%f",&kit);
-			control.SetCPR(kit);
+			control.SetKi(kit);
 		}
 		else cdc_puts("too many arguments!\r\n");
 		return 0;
@@ -341,12 +338,12 @@ namespace{
 		{   "KIT"    ,   usrcmd_kit	},
 		{	"VSP"	,	 usrcmd_vsp},
 		{	"TEMP"	,	usrcmd_temp},
+		{	"MONITOR", usrcmd_monitor	},
 		{   "WCFG"    ,   usrcmd_flash	},
 		{   "HELP",     usrcmd_help     },
 		{   "?",        usrcmd_help     },
 		{   "t_led",  usrcmd_led_toggle	},
 		{ 	"TARGET" ,   usrcmd_target	},
-		{	"monitor", usrcmd_monitor	},
 		{   "GET"    ,   usrcmd_get		},
 	};
 

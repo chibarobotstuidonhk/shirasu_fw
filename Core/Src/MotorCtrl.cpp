@@ -83,7 +83,7 @@ void MotorCtrl::SetDuty(int d){
 
 void MotorCtrl::SetVoltage(Float_Type v){
 	SetDuty(v/supply_voltage*1000);
-	voltage=v;
+	data.voltage=v;
 }
 
 void MotorCtrl::SetMode(Mode Mode){
@@ -204,6 +204,13 @@ Float_Type MotorCtrl::GetKi(void)
 }
 
 void MotorCtrl::ControlCurrent(){
+	//current limit
+	Float_Type amp = std::abs(target_current);
+	bool sign = std::signbit(target_current);
+	if(amp > current_lim_pusled) amp = current_lim_pusled;
+//	if(sum_i > current_lim_continuous*current_lim_continuous*SAMPLE_SIZE && amp>current_lim_continuous) amp = 0;
+	target_current = sign?-amp:amp;
+
 	SetVoltage(current_controller.update(target_current-data.current));
 }
 
@@ -230,10 +237,10 @@ void MotorCtrl::invoke(uint16_t* buf){
 //	static Float_Type sample[SAMPLE_SIZE];
 //
 //	//velocity,position
-//    int16_t pulse = static_cast<int16_t>(TIM2->CNT);
-//    TIM2->CNT = 0;
-//	data.velocity = pulse * Kh;
-//    data.position_pulse += pulse;
+    int16_t pulse = static_cast<int16_t>(TIM2->CNT);
+    TIM2->CNT = 0;
+	data.velocity = pulse * Kh;
+    data.position_pulse += pulse;
 //
 //    sum_i -= sample[i];
 //    sample[i]=data.current*data.current;
@@ -241,18 +248,8 @@ void MotorCtrl::invoke(uint16_t* buf){
 //	if(i<SAMPLE_SIZE-1) i++;
 //	else i=0;
 //
-//	//current limit
-//	Float_Type amp = std::abs(target_current);
-//	bool sign = std::signbit(target_current);
-//	if(amp > current_lim_pusled) amp = current_lim_pusled;
-//	if(sum_i > current_lim_continuous*current_lim_continuous*SAMPLE_SIZE && amp>current_lim_continuous) amp = 0;
-//	target_current = sign?-amp:amp;
 
 	(this->*Control)();
-}
-
-void MotorCtrl::update(){
-
 }
 
 void MotorCtrl::ReadConfig()
