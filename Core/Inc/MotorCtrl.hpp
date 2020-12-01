@@ -91,7 +91,7 @@ private:
 	void SetDuty(int d);
 
 	void ControlDisable(){};
-	void ControlDuty(){};
+	void ControlDuty();
 	void ControlCurrent();
 
 
@@ -116,8 +116,8 @@ public:
 	static constexpr uint16_t ADC_DATA_SIZE=256;
 	static constexpr Float_Type T=0.0002275830678197542;//TODO:set automatically
 	Float_Type Kh = 2 * M_PI / (2000 * T); // エンコーダ入力[pulse/ctrl]を[rad/s]に変換する係数．kg / Tc．
-	static constexpr Float_Type current_lim_pusled=12;
-	static constexpr Float_Type current_lim_continuous=15;
+	static constexpr Float_Type current_lim_pusled=10;
+//	static constexpr Float_Type current_lim_continuous=15;
 	bool monitor = false;
 	E adc_buff[ADC_DATA_SIZE*2];
 

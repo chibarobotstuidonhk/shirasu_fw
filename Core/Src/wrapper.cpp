@@ -47,6 +47,8 @@ extern "C" {
 			double R_load = 3.3e3;
 			double R_measure = (4096*R_load)/(double)adc_temp - R_load;
 			control.temperature = B/log(R_measure/R_inf) - 173.15;
+			if(control.temperature > 40) control.SetMode(MotorCtrl::Mode::disable);
+			if(control.monitor) can.send(control.temperature,0x7fb);
 		}
 	}
 
@@ -55,7 +57,7 @@ extern "C" {
 		static uint32_t last_stream_time = 0;
 		if (HAL_GetTick() - last_stream_time > stream_interval){
 			if(control.monitor){
-				can.send(control.temperature,0x7fb);
+
 				can.send(control.data.voltage,0x7fc);
 				can.send(control.data.current,0x7fd);
 				can.send(control.data.velocity,0x7fe);

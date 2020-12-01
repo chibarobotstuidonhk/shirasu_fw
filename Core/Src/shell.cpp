@@ -124,22 +124,22 @@ namespace{
 		for (int i = 0; i < argc; i++) {
 			char str[256]={};
 			msopt_get_argv(msopt, i, buf, sizeof(buf));
-			if (strcmp(buf, "current") == 0){
+			if (strcmp(buf, "CUR") == 0){
 				sprintf(str,"current:%f[A]\r\n",control.data.current);
 			}
-			else if(strcmp(buf,"process")==0){
+			else if(strcmp(buf,"PROS")==0){
 				sprintf(str,"process time:%f[ms]\r\n",dwt::ProcessTim::get_process_time());
 			}
 			else if(strcmp(buf,"FREQ")==0){
 				sprintf(str,"frequency:%f[Hz]\r\n",dwt::Frequency::get_process_frequency());
 			}
-			else if(strcmp(buf,"velocity")==0){
+			else if(strcmp(buf,"VEL")==0){
 				sprintf(str,"velocity:%f[rad/s]\r\n",control.data.velocity);
 			}
-			else if(strcmp(buf,"position")==0){
+			else if(strcmp(buf,"POS")==0){
 				sprintf(str,"position:%d[pulse]\r\n",control.data.position_pulse);
 			}
-			else if(strcmp(buf,"id")==0){
+			else if(strcmp(buf,"ID")==0){
 				sprintf(str,"id:%3x\r\n",control.can_id);
 			}
 			uo->puts(str);

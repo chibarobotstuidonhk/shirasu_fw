@@ -26,7 +26,7 @@ void MotorCtrl::Init(TIM_HandleTypeDef* tim_pwm,ADC_HandleTypeDef* adc_master,AD
 
 	motor.R = 0.289256;
 	motor.L = 0.000144628;
-	current_controller.Kp = 1200*motor.L;
+	current_controller.Kp = 800*motor.L;
 	Float_Type pole = motor.R / motor.L;
 	current_controller.Ki = pole * current_controller.Kp;
 
@@ -128,7 +128,6 @@ MotorCtrl::Mode MotorCtrl::GetMode(void)const{
 void MotorCtrl::SetTarget(Float_Type target){
 	switch(mode){
 		case Mode::duty:
-			SetDuty(target*1000);
 			target_voltage = target;
 			break;
 		case Mode::current:
@@ -203,12 +202,20 @@ Float_Type MotorCtrl::GetKi(void)
     return velocity_controller.Ki;
 }
 
+void MotorCtrl::ControlDuty(){
+	Float_Type amp = std::abs(data.current);
+//	bool sign = std::signbit(data.current);
+	if(amp > current_lim_pusled){
+		SetMode(Mode::disable);
+	}
+	else SetVoltage(target_voltage);
+}
+
 void MotorCtrl::ControlCurrent(){
 	//current limit
 	Float_Type amp = std::abs(target_current);
 	bool sign = std::signbit(target_current);
 	if(amp > current_lim_pusled) amp = current_lim_pusled;
-//	if(sum_i > current_lim_continuous*current_lim_continuous*SAMPLE_SIZE && amp>current_lim_continuous) amp = 0;
 	target_current = sign?-amp:amp;
 
 	SetVoltage(current_controller.update(target_current-data.current));
