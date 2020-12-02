@@ -68,6 +68,8 @@ void main_cpp(void);
 #define LED_RED_GPIO_Port GPIOB
 #define DIN_A_Pin GPIO_PIN_8
 #define DIN_A_GPIO_Port GPIOA
+#define EMS_Pin GPIO_PIN_9
+#define EMS_GPIO_Port GPIOA
 #define DIN_B_Pin GPIO_PIN_10
 #define DIN_B_GPIO_Port GPIOA
 #define LED_CAN_Pin GPIO_PIN_4

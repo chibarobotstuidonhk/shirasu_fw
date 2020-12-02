@@ -26,7 +26,7 @@ void MotorCtrl::Init(TIM_HandleTypeDef* tim_pwm,ADC_HandleTypeDef* adc_master,AD
 
 	motor.R = 0.289256;
 	motor.L = 0.000144628;
-	current_controller.Kp = 800*motor.L;
+	current_controller.Kp = 1000*motor.L;
 	Float_Type pole = motor.R / motor.L;
 	current_controller.Ki = pole * current_controller.Kp;
 
@@ -36,13 +36,6 @@ void MotorCtrl::Init(TIM_HandleTypeDef* tim_pwm,ADC_HandleTypeDef* adc_master,AD
 	HAL_ADCEx_MultiModeStart_DMA(adc_master, &adc_buff[0].ADCDualConvertedValue, MotorCtrl::ADC_DATA_SIZE*2);
 
 	SetMode(Mode::disable);
-}
-
-void MotorCtrl::Start(){
-	current_controller.reset();
-	velocity_controller.reset();
-	position_controller.reset();
-	motor.reset();
 
 	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_1, 1);
 	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_2, 1);
@@ -50,9 +43,18 @@ void MotorCtrl::Start(){
 	HAL_TIM_PWM_Start(tim_pwm, TIM_CHANNEL_2);
 }
 
+void MotorCtrl::Start(){
+	current_controller.reset();
+	velocity_controller.reset();
+	position_controller.reset();
+
+	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_1, 1);
+	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_2, 1);
+}
+
 void MotorCtrl::Stop(){
-	HAL_TIM_PWM_Stop(tim_pwm, TIM_CHANNEL_1);
-	HAL_TIM_PWM_Stop(tim_pwm, TIM_CHANNEL_2);
+	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_1, 1);
+	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_2, 1);
 }
 
 // @param d duty ratio multiplied by 1000, where 1000 represents 100% duty ratio.
@@ -215,9 +217,10 @@ void MotorCtrl::ControlCurrent(){
 	//current limit
 	Float_Type amp = std::abs(target_current);
 	bool sign = std::signbit(target_current);
-	if(amp > current_lim_pusled) amp = current_lim_pusled;
+	if(amp > current_lim_continuous) amp = current_lim_continuous;
 	target_current = sign?-amp:amp;
 
+//	SetVoltage(current_controller.update(target_current-data.current)+data.Vemf);
 	SetVoltage(current_controller.update(target_current-data.current));
 }
 
@@ -236,25 +239,19 @@ void MotorCtrl::invoke(uint16_t* buf){
 	for(int i=0;i<ADC_DATA_SIZE*2;i+=2){
 		sum+=buf[i]-buf[i+1];
 	}
-	data.current = sum*3.3/4096/20/ADC_DATA_SIZE*1000;
+	data.current = sum*3.3/4096/50/ADC_DATA_SIZE*1000;
 
-//	static uint16_t i;
-//	static uint32_t sum_i;
-//	static constexpr uint16_t SAMPLE_SIZE=2000;
-//	static Float_Type sample[SAMPLE_SIZE];
-//
-//	//velocity,position
+	if(std::abs(data.current) > current_lim_pusled){
+		SetMode(Mode::disable);
+		return;
+	}
+//	data.Vemf = F.update(data.voltage - motor.inverse(data.current));
+
+	//velocity,position
     int16_t pulse = static_cast<int16_t>(TIM2->CNT);
     TIM2->CNT = 0;
 	data.velocity = pulse * Kh;
     data.position_pulse += pulse;
-//
-//    sum_i -= sample[i];
-//    sample[i]=data.current*data.current;
-//    sum_i += sample[i];
-//	if(i<SAMPLE_SIZE-1) i++;
-//	else i=0;
-//
 
 	(this->*Control)();
 }

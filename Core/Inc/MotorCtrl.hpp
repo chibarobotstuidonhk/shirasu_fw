@@ -19,6 +19,7 @@ union E{
 };
 
 struct DataStruct{
+	Float_Type Vemf;
 	Float_Type voltage;
 	Float_Type current;
 	Float_Type velocity;
@@ -31,6 +32,7 @@ public:
 	void ReadConfig();
 	void WriteConfig();
 	uint32_t can_id;
+	static constexpr Float_Type T=0.0002275830678197542;//TODO:set automatically
 private:
 	using MemberFunc = void (MotorCtrl::*)(void);
 
@@ -59,10 +61,6 @@ private:
 	public:
 		Float_Type R;
 		Float_Type L;
-		void reset()
-		{
-			i_prev = 0;
-		}
 		Float_Type inverse(Float_Type i)
 		{
 			Float_Type y = (L/T+R)*i - L/T*i_prev;
@@ -70,7 +68,21 @@ private:
 			return y;
 		}
 	private:
-		Float_Type i_prev;
+		Float_Type i_prev=0;
+	};
+
+	class Filter{
+	public:
+		Float_Type update(Float_Type x)
+		{
+			Float_Type y = (1-a)*x + a*y_prev;
+			y_prev = y;
+			return y;
+		}
+	private:
+		static constexpr Float_Type tau = 1/100;
+		static constexpr Float_Type a = tau / (tau + T);
+		Float_Type y_prev = 0;
 	};
 
 private:
@@ -87,6 +99,7 @@ private:
 	PI velocity_controller;
 	PI position_controller;
 	Motor motor;
+	Filter F;
 
 	void SetDuty(int d);
 
@@ -114,10 +127,9 @@ public:
 	MemberFunc Control = &MotorCtrl::ControlDisable;
 	void invoke(uint16_t* buf);
 	static constexpr uint16_t ADC_DATA_SIZE=256;
-	static constexpr Float_Type T=0.0002275830678197542;//TODO:set automatically
 	Float_Type Kh = 2 * M_PI / (2000 * T); // エンコーダ入力[pulse/ctrl]を[rad/s]に変換する係数．kg / Tc．
-	static constexpr Float_Type current_lim_pusled=10;
-//	static constexpr Float_Type current_lim_continuous=15;
+	static constexpr Float_Type current_lim_pusled=60;
+	static constexpr Float_Type current_lim_continuous=40;
 	bool monitor = false;
 	E adc_buff[ADC_DATA_SIZE*2];
 

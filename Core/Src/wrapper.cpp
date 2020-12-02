@@ -37,6 +37,12 @@ extern "C" {
 	{
 		HAL_ADCEx_InjectedStart(&hadc2);
 		HAL_ADCEx_InjectedStart(&hadc1);
+
+		if(HAL_GPIO_ReadPin(EMS_GPIO_Port, EMS_Pin) == GPIO_PIN_RESET)
+		{
+			control.SetMode(MotorCtrl::Mode::disable);
+		}
+
 		if(HAL_ADCEx_InjectedPollForConversion(&hadc1,100)==HAL_OK){
 			uint32_t adc_voltage = HAL_ADCEx_InjectedGetValue(&hadc1,1);
 			control.supply_voltage = adc_voltage*3.3*11/4096;
@@ -57,8 +63,8 @@ extern "C" {
 		static uint32_t last_stream_time = 0;
 		if (HAL_GetTick() - last_stream_time > stream_interval){
 			if(control.monitor){
-
-				can.send(control.data.voltage,0x7fc);
+				can.send(control.data.Vemf/0.0080087, 0x7fa);
+//				can.send(control.data.voltage,0x7fc);
 				can.send(control.data.current,0x7fd);
 				can.send(control.data.velocity,0x7fe);
 				can.led_process();
