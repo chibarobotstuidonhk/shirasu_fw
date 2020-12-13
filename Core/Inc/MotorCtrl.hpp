@@ -145,6 +145,8 @@ public:
 	Float_Type GetKp(void);
 	uint8_t SetKi(Float_Type ki);
 	Float_Type GetKi(void);
+    uint8_t SetKv(Float_Type kv);
+    Float_Type GetKv(void);
 };
 
 

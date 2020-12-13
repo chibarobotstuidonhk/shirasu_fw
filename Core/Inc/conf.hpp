@@ -14,6 +14,7 @@ struct ConfStruct
         double cpr;
         double Kp;
         double Ki;
+        double Kv;
 };
 
 extern ConfStruct confStruct;

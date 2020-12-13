@@ -253,6 +253,27 @@ namespace{
 		return 0;
 	}
 
+	MSCMD_USER_RESULT usrcmd_kvp(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
+	{
+		USER_OBJECT *uo = (USER_OBJECT *)usrobj;
+		char buf[MSCONF_MAX_INPUT_LENGTH];
+		int argc;
+		msopt_get_argc(msopt, &argc);
+		if(argc == 1){
+			char str[256]={};
+			sprintf(str,"%f\r\n",control.GetKv());
+			uo->puts(str);
+		}
+		else if(argc == 2){
+			msopt_get_argv(msopt, 1, buf, sizeof(buf));
+			Float_Type kvp;
+			sscanf(buf,"%f",&kvp);
+			control.SetKv(kvp);
+		}
+		else cdc_puts("too many arguments!\r\n");
+		return 0;
+	}
+
 	MSCMD_USER_RESULT usrcmd_vsp(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
 	{
 		USER_OBJECT *uo = (USER_OBJECT *)usrobj;
@@ -338,6 +359,7 @@ namespace{
 		{   "KIT"    ,   usrcmd_kit	},
 		{	"VSP"	,	 usrcmd_vsp},
 		{	"TEMP"	,	usrcmd_temp},
+		{   "KVP"    ,   usrcmd_kvp	},
 		{	"MONITOR", usrcmd_monitor	},
 		{   "WCFG"    ,   usrcmd_flash	},
 		{   "HELP",     usrcmd_help     },

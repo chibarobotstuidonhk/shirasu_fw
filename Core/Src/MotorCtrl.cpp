@@ -29,6 +29,7 @@ void MotorCtrl::Init(TIM_HandleTypeDef* tim_pwm,ADC_HandleTypeDef* adc_master,AD
 	current_controller.Kp = 1000*motor.L;
 	Float_Type pole = motor.R / motor.L;
 	current_controller.Ki = pole * current_controller.Kp;
+	position_controller.Ki = 0; //P制御
 
 	HAL_ADCEx_Calibration_Start(adc_master, ADC_SINGLE_ENDED);
 	HAL_ADCEx_Calibration_Start(adc_slave, ADC_SINGLE_ENDED);
@@ -204,10 +205,27 @@ Float_Type MotorCtrl::GetKi(void)
     return velocity_controller.Ki;
 }
 
+uint8_t MotorCtrl::SetKv(Float_Type kv)
+{
+    // Kv is NOT allowed to be negative value.
+    if (kv < 0 || !std::isfinite(kv)){
+    	position_controller.Kp = 0;
+    	return -1;
+    }
+
+    position_controller.Kp = kv;
+    return 0;
+}
+
+Float_Type MotorCtrl::GetKv(void)
+{
+    return position_controller.Kp;
+}
+
+
 void MotorCtrl::ControlDuty(){
 	Float_Type amp = std::abs(data.current);
-//	bool sign = std::signbit(data.current);
-	if(amp > current_lim_pusled){
+	if(amp > current_lim_continuous){
 		SetMode(Mode::disable);
 	}
 	else SetVoltage(target_voltage);
@@ -228,7 +246,10 @@ void MotorCtrl::ControlVelocity(){
 	target_current = velocity_controller.update(target_velocity-data.velocity);
 	ControlCurrent();
 }
-void MotorCtrl::ControlPosition(){}
+void MotorCtrl::ControlPosition(){
+	target_velocity = position_controller.update(target_position_pulse-data.position_pulse);
+	ControlVelocity();
+}
 
 void MotorCtrl::invoke(uint16_t* buf){
 	dwt::Frequency freq;
@@ -263,6 +284,7 @@ void MotorCtrl::ReadConfig()
 	SetCPR(confStruct.cpr);
 	SetKp(confStruct.Kp);
 	SetKi(confStruct.Ki);
+	SetKv(confStruct.Kv);
 }
 
 void MotorCtrl::WriteConfig()
@@ -271,4 +293,5 @@ void MotorCtrl::WriteConfig()
     confStruct.cpr = GetCPR();
     confStruct.Kp = GetKp();
     confStruct.Ki = GetKi();
+    confStruct.Kv = GetKv();
 }
