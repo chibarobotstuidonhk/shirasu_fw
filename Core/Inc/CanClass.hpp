@@ -37,7 +37,7 @@ public:
 	void led_on(void);
 	void led_process(void);
 private:
-	CAN_HandleTypeDef hcan;
+//	CAN_HandleTypeDef hcan;
 	CAN_TxHeaderTypeDef tx_header;
 	CAN_RxHeaderTypeDef rx_header;
 	static constexpr uint8_t CAN_MTU = 8;
@@ -67,6 +67,7 @@ private:
 template<typename T>
 void CanClass::send(T data,uint32_t id)
 {
+	if (bus_state == OFF_BUS) return;
     _Encapsulator<T> _e;
     _e.data = data;
 

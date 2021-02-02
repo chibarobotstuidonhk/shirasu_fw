@@ -60,20 +60,28 @@ void main_cpp(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define LED_GREEN_Pin GPIO_PIN_12
-#define LED_GREEN_GPIO_Port GPIOB
+#define VSENSE_Pin GPIO_PIN_0
+#define VSENSE_GPIO_Port GPIOA
+#define TEMP_Pin GPIO_PIN_1
+#define TEMP_GPIO_Port GPIOA
+#define ISENSEB_Pin GPIO_PIN_4
+#define ISENSEB_GPIO_Port GPIOA
+#define ISENSEA_Pin GPIO_PIN_7
+#define ISENSEA_GPIO_Port GPIOA
+#define EMS_Pin GPIO_PIN_11
+#define EMS_GPIO_Port GPIOB
+#define LED_RED_Pin GPIO_PIN_12
+#define LED_RED_GPIO_Port GPIOB
 #define LED_YELLOW_Pin GPIO_PIN_13
 #define LED_YELLOW_GPIO_Port GPIOB
-#define LED_RED_Pin GPIO_PIN_14
-#define LED_RED_GPIO_Port GPIOB
-#define DIN_A_Pin GPIO_PIN_8
-#define DIN_A_GPIO_Port GPIOA
-#define EMS_Pin GPIO_PIN_9
-#define EMS_GPIO_Port GPIOA
+#define LED_GREEN_Pin GPIO_PIN_14
+#define LED_GREEN_GPIO_Port GPIOB
 #define DIN_B_Pin GPIO_PIN_10
 #define DIN_B_GPIO_Port GPIOA
 #define LED_CAN_Pin GPIO_PIN_4
 #define LED_CAN_GPIO_Port GPIOB
+#define DIN_A_Pin GPIO_PIN_6
+#define DIN_A_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */

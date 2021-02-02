@@ -16,62 +16,91 @@ MotorCtrl control;
 CanClass can;
 
 extern "C" {
-	TIM_HandleTypeDef htim15;
+	TIM_HandleTypeDef htim1;
 	TIM_HandleTypeDef htim2;
 	TIM_HandleTypeDef htim3;
 
 	ADC_HandleTypeDef hadc1;
 	ADC_HandleTypeDef hadc2;
 
-	void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
-	{
-		control.invoke(control.adc_buff[MotorCtrl::ADC_DATA_SIZE].ADCConvertedValue);
-	}
-	void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef *hadc)
-	{
-		control.invoke(control.adc_buff[0].ADCConvertedValue);
+	void HAL_ADCEx_InjectedConvCpltCallback(ADC_HandleTypeDef* hadc){
+		int32_t data = HAL_ADCEx_InjectedGetValue(hadc,2) - HAL_ADCEx_InjectedGetValue(hadc,1);
+		control.data.current = data*3.3/4096/50*1000;
+		switch(control.GetMode()){
+			case MotorCtrl::Mode::current:
+			case MotorCtrl::Mode::velocity:
+			case MotorCtrl::Mode::position:
+				control.ControlCurrent();
+				break;
+			case MotorCtrl::Mode::duty:
+				control.ControlDuty();
+				break;
+		}
 	}
 
-	//2Hz
 	void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	{
-		HAL_ADCEx_InjectedStart(&hadc2);
-		HAL_ADCEx_InjectedStart(&hadc1);
 
-		if(HAL_GPIO_ReadPin(EMS_GPIO_Port, EMS_Pin) == GPIO_PIN_RESET)
-		{
-			control.SetMode(MotorCtrl::Mode::disable);
-		}
-
-		if(HAL_ADCEx_InjectedPollForConversion(&hadc1,100)==HAL_OK){
-			uint32_t adc_voltage = HAL_ADCEx_InjectedGetValue(&hadc1,1);
-			control.supply_voltage = adc_voltage*3.3*11/4096;
-			uint32_t adc_temp = HAL_ADCEx_InjectedGetValue(&hadc2,1);
-			double B = 3434;
-			double R_25 = 10e3;
-			double R_inf = R_25*exp(-B/(25+173.15));
-			double R_load = 3.3e3;
-			double R_measure = (4096*R_load)/(double)adc_temp - R_load;
-			control.temperature = B/log(R_measure/R_inf) - 173.15;
-			if(control.temperature > 40) control.SetMode(MotorCtrl::Mode::disable);
-			if(control.monitor) can.send(control.temperature,0x7fb);
-		}
+	  //30Hz
+	  if(htim->Instance == TIM3)
+	  {
+			can.led_process();
+			if(HAL_GPIO_ReadPin(EMS_GPIO_Port, EMS_Pin) == GPIO_PIN_RESET)
+			{
+				control.SetMode(MotorCtrl::Mode::disable);
+			}
+			if(HAL_ADCEx_InjectedPollForConversion(&hadc1,0)==HAL_OK){
+				uint32_t adc_voltage = HAL_ADCEx_InjectedGetValue(&hadc1,1);
+				control.SetSupplyVoltage(adc_voltage*3.3*11/4096);
+				uint32_t adc_temp = HAL_ADCEx_InjectedGetValue(&hadc1,2);
+				double B = 3434;
+				double R_25 = 10e3;
+				double R_inf = R_25*exp(-B/(25+273.15));
+				double R_load = 3.3e3;
+				double R_measure = (4096*R_load)/(double)adc_temp - R_load;
+				control.temperature = B/log(R_measure/R_inf) - 273.15;
+				if(control.temperature > 75) control.SetMode(MotorCtrl::Mode::disable);
+				if(control.conf_diag == MotorCtrl::Diagnostic::can) can.send(control.temperature,0x7fb);
+				HAL_ADCEx_InjectedStart(&hadc1);
+			}
+	  }
 	}
 
+//	void HAL_TIMEx_BreakCallback(TIM_HandleTypeDef *htim){
+//		control.SetMode(MotorCtrl::Mode::disable);
+//	}
+//	void HAL_TIMEx_Break2Callback(TIM_HandleTypeDef *htim){
+//		control.SetMode(MotorCtrl::Mode::disable);
+//	}
+
+//	void HAL_COMP_TriggerCallback(COMP_HandleTypeDef *hcomp){
+//		HAL_GPIO_TogglePin(LED_CAN_GPIO_Port, LED_CAN_Pin);
+//	}
+	//1kHz
 	void update(){
-		static constexpr uint32_t stream_interval = 1;
-		static uint32_t last_stream_time = 0;
-		if (HAL_GetTick() - last_stream_time > stream_interval){
-			if(control.monitor){
-				can.send(control.data.Vemf/0.0080087, 0x7fa);
-//				can.send(control.data.voltage,0x7fc);
+		switch(control.conf_diag){
+			case MotorCtrl::Diagnostic::usb:
+				control.Print();
+				break;
+			case MotorCtrl::Diagnostic::can:
+				//can.send(control.data.voltage,0x7fc);
 				can.send(control.data.current,0x7fd);
-				can.send(control.data.velocity,0x7fe);
-				can.led_process();
-				last_stream_time = HAL_GetTick();
-			}
+				//can.send(control.data.velocity,0x7fe);
+				break;
 		}
 
+		//velocity,position
+		int16_t pulse = static_cast<int16_t>(TIM2->CNT);
+		TIM2->CNT = 0;
+		control.data.velocity = pulse * control.Kh;
+		control.data.position_pulse += pulse;
+		switch(control.GetMode()){
+			case MotorCtrl::Mode::position:
+				control.ControlPosition();
+			case MotorCtrl::Mode::velocity:
+				control.ControlVelocity();
+				break;
+		}
 	}
 
 	void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
@@ -87,7 +116,8 @@ extern "C" {
 				control.SetMode(MotorCtrl::Mode::disable);
 				break;
 			case 1:
-				break;//TODO:事前に設定したモード
+				control.SetMode(control.GetDefaultMode());
+				break;
 			case 2:
 				control.SetMode(MotorCtrl::Mode::current);
 				break;
@@ -106,15 +136,27 @@ extern "C" {
 
 void main_cpp(void)
 {
-	dwt::init();
+	constexpr uint32_t delay = 100;
+	for(uint8_t i=0;i<3;i++){
+		HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_RESET);
+		HAL_Delay(delay);
+		HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(LED_YELLOW_GPIO_Port, LED_YELLOW_Pin, GPIO_PIN_SET);
+		HAL_Delay(delay);
+		HAL_GPIO_WritePin(LED_YELLOW_GPIO_Port, LED_YELLOW_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_SET);
+		HAL_Delay(delay);
+	}
+	HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_SET);
+
 	shell::init();
 
-	HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_SET);
-
-	control.Init(&htim15,&hadc1,&hadc2);
+	control.Init(&htim1,&hadc2,&hadc1);
 	can.init(control.can_id);
-	HAL_TIM_Base_Start_IT(&htim3);
+
 	HAL_TIM_Encoder_Start(&htim2,TIM_CHANNEL_ALL);
+	HAL_TIM_Base_Start_IT(&htim3);
 
 	while(1){
 		shell::update();

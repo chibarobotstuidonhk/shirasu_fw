@@ -8,6 +8,10 @@
 #include "CanClass.hpp"
 #include "main.h"
 
+extern "C" {
+	CAN_HandleTypeDef hcan;
+};
+
 CanClass::CanClass()
 {
 }
@@ -16,7 +20,6 @@ void CanClass::init(uint32_t id,uint32_t bitrate)
 {
 	pclk1 = HAL_RCC_GetPCLK1Freq();
 	this->id = id;
-    hcan.Instance = CAN;
     bus_state = OFF_BUS;
 
 	tx_header.RTR = CAN_RTR_DATA;
@@ -63,6 +66,7 @@ void CanClass::can_enable(void)
 {
     if (bus_state == OFF_BUS)
     {
+    	HAL_CAN_DeInit(&hcan);
         hcan.Init.Prescaler = prescaler;
         hcan.Init.Mode = CAN_MODE_NORMAL;
 
@@ -78,7 +82,12 @@ void CanClass::can_enable(void)
         hcan.Init.ReceiveFifoLocked = DISABLE;
         hcan.Init.TransmitFifoPriority = DISABLE;
 
-        HAL_CAN_Init(&hcan);
+        if (HAL_CAN_Init(&hcan) != HAL_OK)
+        {
+          Error_Handler();
+        }
+
+//        HAL_CAN_Init(&hcan);
         bus_state = ON_BUS;
         can_set_filter(id, 0x07fc);//reserve 4 id
 

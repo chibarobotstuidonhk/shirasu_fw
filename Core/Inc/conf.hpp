@@ -11,6 +11,7 @@
 struct ConfStruct
 {
         uint16_t can_id;
+        uint8_t default_mode;
         double cpr;
         double Kp;
         double Ki;

@@ -16,32 +16,29 @@ extern "C"{
 	uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len);
 }
 
-void MotorCtrl::Init(TIM_HandleTypeDef* tim_pwm,ADC_HandleTypeDef* adc_master,ADC_HandleTypeDef* adc_slave){
+void MotorCtrl::Init(TIM_HandleTypeDef* tim_pwm,ADC_HandleTypeDef* adc_current,ADC_HandleTypeDef* adc_sensor){
 	this->tim_pwm = tim_pwm;
-	this->adc_master = adc_master;
-	this->adc_slave = adc_slave;
-	ccr_max = __HAL_TIM_GET_AUTORELOAD(tim_pwm);
+	this->adc_current = adc_current;
+	this->adc_sensor = adc_sensor;
+
+	ccr_arr = __HAL_TIM_GET_AUTORELOAD(tim_pwm);
+	ccr_max = (__HAL_TIM_GET_AUTORELOAD(tim_pwm)+1)*0.9-1;
 
 	ReadConfig();
 
 	motor.R = 0.289256;
 	motor.L = 0.000144628;
-	current_controller.Kp = 1000*motor.L;
+	current_controller.Kp = 2000*motor.L;
 	Float_Type pole = motor.R / motor.L;
 	current_controller.Ki = pole * current_controller.Kp;
-	position_controller.Ki = 0; //P制御
+	current_controller.T = 1.0/16e3;
 
-	HAL_ADCEx_Calibration_Start(adc_master, ADC_SINGLE_ENDED);
-	HAL_ADCEx_Calibration_Start(adc_slave, ADC_SINGLE_ENDED);
-	HAL_ADC_Start(adc_slave);
-	HAL_ADCEx_MultiModeStart_DMA(adc_master, &adc_buff[0].ADCDualConvertedValue, MotorCtrl::ADC_DATA_SIZE*2);
+	velocity_controller.T = Tc;
+
+	position_controller.Ki = 0; //P制御
+	position_controller.T = Tc;
 
 	SetMode(Mode::disable);
-
-	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_1, 1);
-	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_2, 1);
-	HAL_TIM_PWM_Start(tim_pwm, TIM_CHANNEL_1);
-	HAL_TIM_PWM_Start(tim_pwm, TIM_CHANNEL_2);
 }
 
 void MotorCtrl::Start(){
@@ -49,32 +46,59 @@ void MotorCtrl::Start(){
 	velocity_controller.reset();
 	position_controller.reset();
 
+	if (HAL_ADCEx_Calibration_Start(adc_current, ADC_SINGLE_ENDED) != HAL_OK){
+		Error_Handler();
+	}
+	if(HAL_ADCEx_InjectedStart_IT(adc_current)!= HAL_OK){
+		Error_Handler();
+	}
+
+	if (HAL_ADCEx_Calibration_Start(adc_sensor, ADC_SINGLE_ENDED) != HAL_OK){
+		Error_Handler();
+	}
+	if(HAL_ADCEx_InjectedStart(adc_sensor)!= HAL_OK){
+		Error_Handler();
+	}
+
 	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_1, 1);
 	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_2, 1);
+	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_3, ccr_max-32);
+	HAL_TIM_PWM_Start(tim_pwm, TIM_CHANNEL_1);
+	HAL_TIM_PWM_Start(tim_pwm, TIM_CHANNEL_2);
+	HAL_TIM_PWM_Start(tim_pwm, TIM_CHANNEL_3);
 }
 
 void MotorCtrl::Stop(){
-	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_1, 1);
-	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_2, 1);
+	HAL_TIM_PWM_Stop(tim_pwm, TIM_CHANNEL_1);
+	HAL_TIM_PWM_Stop(tim_pwm, TIM_CHANNEL_2);
+	HAL_TIM_PWM_Stop(tim_pwm, TIM_CHANNEL_3);
+
+	if(HAL_ADCEx_InjectedStop_IT(adc_current)!= HAL_OK){
+		Error_Handler();
+	}
+	if(HAL_ADCEx_InjectedStop(adc_sensor)!= HAL_OK){
+		Error_Handler();
+	}
+
 }
 
 // @param d duty ratio multiplied by 1000, where 1000 represents 100% duty ratio.
 void MotorCtrl::SetDuty(int d){
 
-    if (d < -1000 || 1000 < d)
+    if (d < -900 || 900 < d)
     {
         return;
     }
 
     else if (0 < d)
     {
-    	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_1, 0);
-    	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_2, d*ccr_max/1000);
+    	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_1, 1);
+    	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_2, d*ccr_arr/1000);
     }
     else if (d < 0)
     {
-    	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_1, -d*ccr_max/1000);
-    	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_2, 0);
+    	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_1, -d*ccr_arr/1000);
+    	__HAL_TIM_SET_COMPARE(tim_pwm, TIM_CHANNEL_2, 1);
     }
 
     else
@@ -84,31 +108,37 @@ void MotorCtrl::SetDuty(int d){
     }
 }
 
-void MotorCtrl::SetVoltage(Float_Type v){
-	SetDuty(v/supply_voltage*1000);
-	data.voltage=v;
+void MotorCtrl::SetSupplyVoltage(Float_Type sv){
+	supply_voltage = sv;
+	voltage_lim = supply_voltage * (ccr_max + 1) / (ccr_arr + 1);
+}
+
+void MotorCtrl::SetVoltage(){
+	Float_Type amp = std::abs(target_voltage);
+	bool sign = std::signbit(target_voltage);
+	if(amp > voltage_lim) amp = voltage_lim;
+	target_voltage = sign?-amp:amp;
+	SetDuty(target_voltage/supply_voltage*1000);
 }
 
 void MotorCtrl::SetMode(Mode Mode){
+//	if(HAL_GPIO_ReadPin(EMS_GPIO_Port, EMS_Pin) == GPIO_PIN_RESET)
+//	{
+//		return;
+//	}
 	switch(Mode){
 		case Mode::duty:
-			Control = &MotorCtrl::ControlDuty;
-			target_voltage = 0;
+			target_duty = 0;
 			break;
 		case Mode::current:
-			Control = &MotorCtrl::ControlCurrent;
 			target_current = 0;
 			break;
 		case Mode::velocity:
-			Control = &MotorCtrl::ControlVelocity;
 			target_velocity = 0;
 			break;
 		case Mode::position:
-			Control = &MotorCtrl::ControlPosition;
 			target_position_pulse = data.position_pulse;
 			break;
-		default:
-			Control = &MotorCtrl::ControlDisable;
 	}
 	if(Mode != Mode::disable){
 		Start();
@@ -121,7 +151,6 @@ void MotorCtrl::SetMode(Mode Mode){
 		HAL_GPIO_WritePin(LED_YELLOW_GPIO_Port, LED_YELLOW_Pin, GPIO_PIN_RESET);
 	}
 	mode = Mode;
-	//TODO:ES信号を見る
 }
 
 MotorCtrl::Mode MotorCtrl::GetMode(void)const{
@@ -131,13 +160,16 @@ MotorCtrl::Mode MotorCtrl::GetMode(void)const{
 void MotorCtrl::SetTarget(Float_Type target){
 	switch(mode){
 		case Mode::duty:
-			target_voltage = target;
+			target_duty = target*1000;
 			break;
 		case Mode::current:
 			target_current = target;
 			break;
 		case Mode::velocity:
 			target_velocity = target;
+			break;
+		case Mode::position:
+			target_position_pulse = (int)roundf(target / (Kh * Tc));
 			break;
 		default:
 			;
@@ -152,15 +184,17 @@ Float_Type MotorCtrl::GetTarget()const{
 			return target_current;
 		case Mode::velocity:
 			return target_velocity;
+		case Mode::position:
+			return target_position_pulse * Kh * Tc;
 		default:
 			;
 	}
 }
 
-uint8_t MotorCtrl::SetCPR(Float_Type cpr)
+int8_t MotorCtrl::SetCPR(Float_Type cpr)
 {
 	if(std::isfinite(cpr)){
-		Kh = 2 * M_PI / (cpr * T);
+		Kh = 2 * M_PI / (cpr * Tc);
 		return 0;
 	}
 	else return -1;
@@ -168,11 +202,11 @@ uint8_t MotorCtrl::SetCPR(Float_Type cpr)
 
 Float_Type MotorCtrl::GetCPR(void)
 {
-    return 2 * M_PI / (Kh * T);
+    return 2 * M_PI / (Kh * Tc);
 }
 
 // set proportional gain Kp
-uint8_t MotorCtrl::SetKp(Float_Type kp)
+int8_t MotorCtrl::SetKp(Float_Type kp)
 {
     if (kp < 0 || !std::isfinite(kp)){
     	velocity_controller.Kp = 0;
@@ -189,7 +223,7 @@ Float_Type MotorCtrl::GetKp(void)
 }
 
 // integral gain
-uint8_t MotorCtrl::SetKi(Float_Type ki)
+int8_t MotorCtrl::SetKi(Float_Type ki)
 {
     if (ki < 0 || !std::isfinite(ki)){
     	velocity_controller.Ki = 0;
@@ -205,7 +239,7 @@ Float_Type MotorCtrl::GetKi(void)
     return velocity_controller.Ki;
 }
 
-uint8_t MotorCtrl::SetKv(Float_Type kv)
+int8_t MotorCtrl::SetKv(Float_Type kv)
 {
     // Kv is NOT allowed to be negative value.
     if (kv < 0 || !std::isfinite(kv)){
@@ -222,65 +256,67 @@ Float_Type MotorCtrl::GetKv(void)
     return position_controller.Kp;
 }
 
+int8_t MotorCtrl::SetDefaultMode(Mode dm)
+{
+	switch(dm){
+		case Mode::duty:
+		case Mode::current:
+		case Mode::velocity:
+		case Mode::position:
+			default_mode = dm;
+			return 0;
+		default:
+			default_mode = Mode::disable;
+			return -1;
+	}
+}
+
+MotorCtrl::Mode MotorCtrl::GetDefaultMode()
+{
+	return default_mode;
+}
+
+int8_t MotorCtrl::SetBID(uint32_t bid){
+    if ((0x4 <= bid) && (bid <= 0x7ff) && (bid % 4 == 0)){
+    	can_id = bid;
+    	return 0;
+    }
+    else{
+    	return -1;
+    }
+
+}
 
 void MotorCtrl::ControlDuty(){
 	Float_Type amp = std::abs(data.current);
-	if(amp > current_lim_continuous){
+	if(amp > current_lim){
 		SetMode(Mode::disable);
 	}
-	else SetVoltage(target_voltage);
+	else SetDuty(target_duty);
 }
 
 void MotorCtrl::ControlCurrent(){
 	//current limit
 	Float_Type amp = std::abs(target_current);
 	bool sign = std::signbit(target_current);
-	if(amp > current_lim_continuous) amp = current_lim_continuous;
+	if(amp > current_lim) amp = current_lim;
 	target_current = sign?-amp:amp;
-
-//	SetVoltage(current_controller.update(target_current-data.current)+data.Vemf);
-	SetVoltage(current_controller.update(target_current-data.current));
+	target_voltage += current_controller.update(target_current-data.current);
+	SetVoltage();
 }
 
 void MotorCtrl::ControlVelocity(){
-	target_current = velocity_controller.update(target_velocity-data.velocity);
-	ControlCurrent();
+	target_current += velocity_controller.update(target_velocity-data.velocity);
 }
 void MotorCtrl::ControlPosition(){
-	target_velocity = position_controller.update(target_position_pulse-data.position_pulse);
-	ControlVelocity();
-}
-
-void MotorCtrl::invoke(uint16_t* buf){
-	dwt::Frequency freq;
-	dwt::ProcessTim tim;
-
-	//current
-	int32_t sum=0;
-	for(int i=0;i<ADC_DATA_SIZE*2;i+=2){
-		sum+=buf[i]-buf[i+1];
-	}
-	data.current = sum*3.3/4096/50/ADC_DATA_SIZE*1000;
-
-	if(std::abs(data.current) > current_lim_pusled){
-		SetMode(Mode::disable);
-		return;
-	}
-//	data.Vemf = F.update(data.voltage - motor.inverse(data.current));
-
-	//velocity,position
-    int16_t pulse = static_cast<int16_t>(TIM2->CNT);
-    TIM2->CNT = 0;
-	data.velocity = pulse * Kh;
-    data.position_pulse += pulse;
-
-	(this->*Control)();
+	target_velocity += position_controller.update((target_position_pulse-data.position_pulse) * Kh * Tc);
 }
 
 void MotorCtrl::ReadConfig()
 {
 	readConf();
 	can_id = confStruct.can_id;
+	SetDefaultMode(static_cast<Mode>(confStruct.default_mode));
 	SetCPR(confStruct.cpr);
 	SetKp(confStruct.Kp);
 	SetKi(confStruct.Ki);
@@ -290,8 +326,27 @@ void MotorCtrl::ReadConfig()
 void MotorCtrl::WriteConfig()
 {
     confStruct.can_id = can_id;
+    confStruct.default_mode = static_cast<uint8_t>(default_mode);
     confStruct.cpr = GetCPR();
     confStruct.Kp = GetKp();
     confStruct.Ki = GetKi();
     confStruct.Kv = GetKv();
+}
+
+void MotorCtrl::Print(void)
+{
+    char buf[128];
+    int ret;
+    ret = sprintf(buf, "%06lu,%+03d,%+03d,%+3.3f,%+3.3f,%+3.3f,%+3.3f,%+3.3f,%+3.3f\r\n", HAL_GetTick(),
+            data.position_pulse, target_position_pulse,
+			(float)data.velocity,(float)target_velocity,
+            (float)data.current,(float)target_current,
+			(float)target_voltage,(float)temperature);
+
+    if (ret < 0)
+    {
+        return;
+    }
+
+    CDC_Transmit_FS((uint8_t*)buf, ret);
 }
