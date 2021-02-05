@@ -5,12 +5,13 @@
  *      Author: ryu
  */
 
-#include <MotorCtrl.hpp>
-#include "dwt.hpp"
-#include "stdio.h"
+#include <cstdio>
 #include <cmath>
 #include "conf.hpp"
 #include "main.h"
+#include "MotorCtrl.hpp"
+
+using namespace md;
 
 extern "C"{
 	uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len);
@@ -45,6 +46,8 @@ void MotorCtrl::Start(){
 	current_controller.reset();
 	velocity_controller.reset();
 	position_controller.reset();
+
+	error = Error::none;
 
 	if (HAL_ADCEx_Calibration_Start(adc_current, ADC_SINGLE_ENDED) != HAL_OK){
 		Error_Handler();
@@ -82,6 +85,32 @@ void MotorCtrl::Stop(){
 
 }
 
+void MotorCtrl::UpdatePulse(int16_t pulse){
+	current.velocity = pulse * Kh;
+	current.position_pulse += pulse;
+	switch(GetMode()){
+		case Mode::position:
+			ControlPosition();
+		case Mode::velocity:
+			ControlVelocity();
+			break;
+	}
+}
+
+void MotorCtrl::UpdateCurrent(int32_t data){
+	this->current.current = data*3.3/4096/50*1000;
+	switch(GetMode()){
+		case Mode::current:
+		case Mode::velocity:
+		case Mode::position:
+			ControlCurrent();
+			break;
+		case Mode::duty:
+			ControlDuty();
+			break;
+	}
+}
+
 // @param d duty ratio multiplied by 1000, where 1000 represents 100% duty ratio.
 void MotorCtrl::SetDuty(int d){
 
@@ -108,9 +137,21 @@ void MotorCtrl::SetDuty(int d){
     }
 }
 
-void MotorCtrl::SetSupplyVoltage(Float_Type sv){
+int8_t MotorCtrl::SetVSP(Float_Type sv){
 	supply_voltage = sv;
-	voltage_lim = supply_voltage * (ccr_max + 1) / (ccr_arr + 1);
+	if(vsp_lim[0] < sv && sv < vsp_lim[1]){
+		voltage_lim = supply_voltage * (ccr_max + 1) / (ccr_arr + 1);
+		return 0;
+	}
+	else{
+		SetMode(Mode::disable);
+		error = Error::out_of_operating_voltage;
+		return -1;
+	}
+}
+
+Float_Type MotorCtrl::GetVSP() const{
+	return supply_voltage;
 }
 
 void MotorCtrl::SetVoltage(){
@@ -122,22 +163,22 @@ void MotorCtrl::SetVoltage(){
 }
 
 void MotorCtrl::SetMode(Mode Mode){
-//	if(HAL_GPIO_ReadPin(EMS_GPIO_Port, EMS_Pin) == GPIO_PIN_RESET)
-//	{
-//		return;
-//	}
+	if(HAL_GPIO_ReadPin(EMS_GPIO_Port, EMS_Pin) == GPIO_PIN_RESET)
+	{
+		return;
+	}
 	switch(Mode){
 		case Mode::duty:
 			target_duty = 0;
 			break;
 		case Mode::current:
-			target_current = 0;
+			target.current = 0;
 			break;
 		case Mode::velocity:
-			target_velocity = 0;
+			target.velocity = 0;
 			break;
 		case Mode::position:
-			target_position_pulse = data.position_pulse;
+			target.position_pulse = current.position_pulse;
 			break;
 	}
 	if(Mode != Mode::disable){
@@ -153,46 +194,45 @@ void MotorCtrl::SetMode(Mode Mode){
 	mode = Mode;
 }
 
-MotorCtrl::Mode MotorCtrl::GetMode(void)const{
+Mode MotorCtrl::GetMode(void) const{
 	return mode;
 }
 
-void MotorCtrl::SetTarget(Float_Type target){
+void MotorCtrl::SetTarget(Float_Type tar){
 	switch(mode){
 		case Mode::duty:
-			target_duty = target*1000;
+			target_duty = tar*1000;
 			break;
 		case Mode::current:
-			target_current = target;
+			target.current = tar;
 			break;
 		case Mode::velocity:
-			target_velocity = target;
+			target.velocity = tar;
 			break;
 		case Mode::position:
-			target_position_pulse = (int)roundf(target / (Kh * Tc));
+			target.position_pulse = (int)roundf(tar / (Kh * Tc));
 			break;
 		default:
 			;
 	}
 }
 
-Float_Type MotorCtrl::GetTarget()const{
+Float_Type MotorCtrl::GetTarget() const{
 	switch(mode){
 		case Mode::duty:
 			return target_voltage;
 		case Mode::current:
-			return target_current;
+			return target.current;
 		case Mode::velocity:
-			return target_velocity;
+			return target.velocity;
 		case Mode::position:
-			return target_position_pulse * Kh * Tc;
+			return target.position_pulse * Kh * Tc;
 		default:
 			;
 	}
 }
 
-int8_t MotorCtrl::SetCPR(Float_Type cpr)
-{
+int8_t MotorCtrl::SetCPR(Float_Type cpr){
 	if(std::isfinite(cpr)){
 		Kh = 2 * M_PI / (cpr * Tc);
 		return 0;
@@ -200,8 +240,7 @@ int8_t MotorCtrl::SetCPR(Float_Type cpr)
 	else return -1;
 }
 
-Float_Type MotorCtrl::GetCPR(void)
-{
+Float_Type MotorCtrl::GetCPR(void) const{
     return 2 * M_PI / (Kh * Tc);
 }
 
@@ -217,14 +256,12 @@ int8_t MotorCtrl::SetKp(Float_Type kp)
     return 0;
 }
 
-Float_Type MotorCtrl::GetKp(void)
-{
+Float_Type MotorCtrl::GetKp(void) const{
     return velocity_controller.Kp;
 }
 
 // integral gain
-int8_t MotorCtrl::SetKi(Float_Type ki)
-{
+int8_t MotorCtrl::SetKi(Float_Type ki){
     if (ki < 0 || !std::isfinite(ki)){
     	velocity_controller.Ki = 0;
     	return -1;
@@ -234,13 +271,11 @@ int8_t MotorCtrl::SetKi(Float_Type ki)
     return 0;
 }
 
-Float_Type MotorCtrl::GetKi(void)
-{
+Float_Type MotorCtrl::GetKi(void) const{
     return velocity_controller.Ki;
 }
 
-int8_t MotorCtrl::SetKv(Float_Type kv)
-{
+int8_t MotorCtrl::SetKv(Float_Type kv){
     // Kv is NOT allowed to be negative value.
     if (kv < 0 || !std::isfinite(kv)){
     	position_controller.Kp = 0;
@@ -251,13 +286,11 @@ int8_t MotorCtrl::SetKv(Float_Type kv)
     return 0;
 }
 
-Float_Type MotorCtrl::GetKv(void)
-{
+Float_Type MotorCtrl::GetKv(void) const{
     return position_controller.Kp;
 }
 
-int8_t MotorCtrl::SetDefaultMode(Mode dm)
-{
+int8_t MotorCtrl::SetDefaultMode(Mode dm){
 	switch(dm){
 		case Mode::duty:
 		case Mode::current:
@@ -271,8 +304,7 @@ int8_t MotorCtrl::SetDefaultMode(Mode dm)
 	}
 }
 
-MotorCtrl::Mode MotorCtrl::GetDefaultMode()
-{
+Mode MotorCtrl::GetDefaultMode() const{
 	return default_mode;
 }
 
@@ -287,8 +319,32 @@ int8_t MotorCtrl::SetBID(uint32_t bid){
 
 }
 
+uint32_t MotorCtrl::GetBID() const{
+	return can_id;
+}
+
+int8_t MotorCtrl::SetTEMP(Float_Type temp){
+	if(temperature_lim[0] < temp && temp < temperature_lim[1]){
+		temperature = temp;
+		return 0;
+	}
+	else{
+		SetMode(Mode::disable);
+		error = Error::out_of_operating_temperature;
+		return -1;
+	}
+}
+
+Float_Type MotorCtrl::GetTEMP() const{
+	return temperature;
+}
+
+Error MotorCtrl::GetError() const{
+	return error;
+}
+
 void MotorCtrl::ControlDuty(){
-	Float_Type amp = std::abs(data.current);
+	Float_Type amp = std::abs(current.current);
 	if(amp > current_lim){
 		SetMode(Mode::disable);
 	}
@@ -297,23 +353,22 @@ void MotorCtrl::ControlDuty(){
 
 void MotorCtrl::ControlCurrent(){
 	//current limit
-	Float_Type amp = std::abs(target_current);
-	bool sign = std::signbit(target_current);
+	Float_Type amp = std::abs(target.current);
+	bool sign = std::signbit(target.current);
 	if(amp > current_lim) amp = current_lim;
-	target_current = sign?-amp:amp;
-	target_voltage += current_controller.update(target_current-data.current);
+	target.current = sign?-amp:amp;
+	target_voltage += current_controller.update(target.current-current.current);
 	SetVoltage();
 }
 
 void MotorCtrl::ControlVelocity(){
-	target_current += velocity_controller.update(target_velocity-data.velocity);
+	target.current += velocity_controller.update(target.velocity-current.velocity);
 }
 void MotorCtrl::ControlPosition(){
-	target_velocity += position_controller.update((target_position_pulse-data.position_pulse) * Kh * Tc);
+	target.velocity += position_controller.update((target.position_pulse-current.position_pulse) * Kh * Tc);
 }
 
-void MotorCtrl::ReadConfig()
-{
+void MotorCtrl::ReadConfig(){
 	readConf();
 	can_id = confStruct.can_id;
 	SetDefaultMode(static_cast<Mode>(confStruct.default_mode));
@@ -323,8 +378,7 @@ void MotorCtrl::ReadConfig()
 	SetKv(confStruct.Kv);
 }
 
-void MotorCtrl::WriteConfig()
-{
+void MotorCtrl::WriteConfig(){
     confStruct.can_id = can_id;
     confStruct.default_mode = static_cast<uint8_t>(default_mode);
     confStruct.cpr = GetCPR();
@@ -333,14 +387,13 @@ void MotorCtrl::WriteConfig()
     confStruct.Kv = GetKv();
 }
 
-void MotorCtrl::Print(void)
-{
+void MotorCtrl::Print(){
     char buf[128];
     int ret;
-    ret = sprintf(buf, "%06lu,%+03d,%+03d,%+3.3f,%+3.3f,%+3.3f,%+3.3f,%+3.3f,%+3.3f\r\n", HAL_GetTick(),
-            data.position_pulse, target_position_pulse,
-			(float)data.velocity,(float)target_velocity,
-            (float)data.current,(float)target_current,
+    ret = std::sprintf(buf, "%06lu,%+03d,%+03d,%+3.3f,%+3.3f,%+3.3f,%+3.3f,%+3.3f,%+3.3f\r\n", HAL_GetTick(),
+            current.position_pulse, target.position_pulse,
+			(float)current.velocity,(float)target.velocity,
+            (float)current.current,(float)target.current,
 			(float)target_voltage,(float)temperature);
 
     if (ret < 0)
