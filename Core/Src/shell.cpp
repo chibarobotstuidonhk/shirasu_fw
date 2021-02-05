@@ -30,9 +30,29 @@ extern "C" {
 namespace{
 	uint8_t sendbuf[] = "shell>";
 	char buf[MSCONF_MAX_INPUT_LENGTH];
+	char tx_buf[128];
 
 	MICROSHELL ms;
 	MSCMD mscmd;
+
+	void invalid_value(const char * name, double value)
+	{
+		int ret = std::sprintf(tx_buf, "--> Invalid value for %s: %lf\r\n", name, value);
+		if(0 < ret) cdc_puts(tx_buf);
+	}
+
+	void valid_value_set(const char * name, const char * unit, double value)
+	{
+		int ret = std::sprintf(tx_buf, "--> Set %s: %lf [%s]\r\n", name, value, unit);
+		if(0 < ret) cdc_puts(tx_buf);
+	}
+
+	void dump_value(const char * name, const char * unit, double value)
+	{
+	    int ret = std::sprintf(tx_buf, "--> Current %s: %lf [%s]\r\n", name, value, unit);
+	    if(0 < ret) cdc_puts(tx_buf);
+	}
+
 
 	typedef struct {
 		void (*puts)(char *str);
@@ -149,7 +169,7 @@ namespace{
 		msopt_get_argc(msopt, &argc);
 		if(argc == 1){
 			char str[256]={};
-			sprintf(str,"0X%3x\r\n",control.GetBID());
+			sprintf(str,"--> Current BID: 0X%3x\r\n",control.GetBID());
 			uo->puts(str);
 		}
 		else if(argc == 2){
@@ -158,7 +178,7 @@ namespace{
 			sscanf(buf,"%3x",&id);
 			if(control.SetBID(id)){
 				cdc_puts("invalid BID\r\n");
-				cdc_puts("BID should be 0x003 < bid < 0x800  and multiples of 4\r\n");
+				cdc_puts("BID should be 0x003 < bid < 0x800 and multiples of 4\r\n");
 			}
 		}
 		else cdc_puts("too many arguments!\r\n");
@@ -171,16 +191,26 @@ namespace{
 		char buf[MSCONF_MAX_INPUT_LENGTH];
 		int argc;
 		msopt_get_argc(msopt, &argc);
+
+		const char* name = "ppr";
+		const char* unit = "Pulse per Revolution";
 		if(argc == 1){
-			char str[256]={};
-			sprintf(str,"%f[Pulses per Revolution]\r\n",control.GetCPR()/4);
-			uo->puts(str);
+		    dump_value(name, unit, control.GetPPR());
 		}
 		else if(argc == 2){
 			msopt_get_argv(msopt, 1, buf, sizeof(buf));
 			Float_Type ppr;
-			sscanf(buf,"%f",&ppr);
-			control.SetCPR(ppr*4);
+			std:sscanf(buf,"%lf",&ppr);
+			int8_t ret = control.SetPPR(ppr);
+
+	        if (ret != 0)
+	        {
+	            invalid_value(name, ppr);
+	        }
+	        else
+	        {
+	            valid_value_set(name, unit, ppr);
+	        }
 		}
 		else cdc_puts("too many arguments!\r\n");
 		return 0;
@@ -192,16 +222,26 @@ namespace{
 		char buf[MSCONF_MAX_INPUT_LENGTH];
 		int argc;
 		msopt_get_argc(msopt, &argc);
+
+		const char* name = "cpr";
+		const char* unit = "Counts per Revolution";
 		if(argc == 1){
-			char str[256]={};
-			sprintf(str,"%f[Counts per Revolution]\r\n",control.GetCPR());
-			uo->puts(str);
+		    dump_value(name, unit, control.GetCPR());
 		}
 		else if(argc == 2){
 			msopt_get_argv(msopt, 1, buf, sizeof(buf));
 			Float_Type cpr;
-			sscanf(buf,"%f",&cpr);
-			control.SetCPR(cpr);
+			std:sscanf(buf,"%lf",&cpr);
+			int8_t ret = control.SetCPR(cpr);
+
+	        if (ret != 0)
+	        {
+	            invalid_value(name, cpr);
+	        }
+	        else
+	        {
+	            valid_value_set(name, unit, cpr);
+	        }
 		}
 		else cdc_puts("too many arguments!\r\n");
 		return 0;
@@ -213,16 +253,25 @@ namespace{
 		char buf[MSCONF_MAX_INPUT_LENGTH];
 		int argc;
 		msopt_get_argc(msopt, &argc);
+		const char* name = "Kp";
+		const char* unit = "A/(rad/s)";
 		if(argc == 1){
-			char str[256]={};
-			sprintf(str,"%f[A/(rad/s)]\r\n",control.GetKp());
-			uo->puts(str);
+		    dump_value(name, unit, control.GetKp());
 		}
 		else if(argc == 2){
 			msopt_get_argv(msopt, 1, buf, sizeof(buf));
 			Float_Type kpr;
-			sscanf(buf,"%f",&kpr);
-			control.SetKp(kpr);
+			std:sscanf(buf,"%lf",&kpr);
+			int8_t ret = control.SetKp(kpr);
+
+	        if (ret != 0)
+	        {
+	            invalid_value(name, kpr);
+	        }
+	        else
+	        {
+	            valid_value_set(name, unit, kpr);
+	        }
 		}
 		else cdc_puts("too many arguments!\r\n");
 		return 0;
@@ -234,16 +283,26 @@ namespace{
 		char buf[MSCONF_MAX_INPUT_LENGTH];
 		int argc;
 		msopt_get_argc(msopt, &argc);
+
+		const char* name = "Ki";
+		const char* unit = "A/(rad/s)";
 		if(argc == 1){
-			char str[256]={};
-			sprintf(str,"%f[A/(rad/s)]\r\n",control.GetKi());
-			uo->puts(str);
+		    dump_value(name, unit, control.GetKi());
 		}
 		else if(argc == 2){
 			msopt_get_argv(msopt, 1, buf, sizeof(buf));
-			Float_Type kit;
-			sscanf(buf,"%f",&kit);
-			control.SetKi(kit);
+			Float_Type ki;
+			std:sscanf(buf,"%lf",&ki);
+			int8_t ret = control.SetKi(ki);
+
+	        if (ret != 0)
+	        {
+	            invalid_value(name, ki);
+	        }
+	        else
+	        {
+	            valid_value_set(name, unit, ki);
+	        }
 		}
 		else cdc_puts("too many arguments!\r\n");
 		return 0;
@@ -255,16 +314,26 @@ namespace{
 		char buf[MSCONF_MAX_INPUT_LENGTH];
 		int argc;
 		msopt_get_argc(msopt, &argc);
+
+		const char* name = "Kv";
+		const char* unit = "(rad/s) / rad";
 		if(argc == 1){
-			char str[256]={};
-			sprintf(str,"%f[(rad/s) / rad]\r\n",control.GetKv());
-			uo->puts(str);
+		    dump_value(name, unit, control.GetKv());
 		}
 		else if(argc == 2){
 			msopt_get_argv(msopt, 1, buf, sizeof(buf));
-			Float_Type kvp;
-			sscanf(buf,"%f",&kvp);
-			control.SetKv(kvp);
+			Float_Type kv;
+			std:sscanf(buf,"%lf",&kv);
+			int8_t ret = control.SetKv(kv);
+
+	        if (ret != 0)
+	        {
+	            invalid_value(name, kv);
+	        }
+	        else
+	        {
+	            valid_value_set(name, unit, kv);
+	        }
 		}
 		else cdc_puts("too many arguments!\r\n");
 		return 0;
@@ -291,16 +360,26 @@ namespace{
 		char buf[MSCONF_MAX_INPUT_LENGTH];
 		int argc;
 		msopt_get_argc(msopt, &argc);
+
+		const char* name = "Omega_homing";
+		const char* unit = "rad/s";
 		if(argc == 1){
-			char str[256]={};
-			sprintf(str,"%f[rad/s]\r\n",control.GetHVL());
-			uo->puts(str);
+		    dump_value(name, unit, control.GetHVL());
 		}
 		else if(argc == 2){
 			msopt_get_argv(msopt, 1, buf, sizeof(buf));
 			Float_Type hvl;
-			sscanf(buf,"%f",&hvl);
-			control.SetHVL(hvl);
+			std:sscanf(buf,"%lf",&hvl);
+			int8_t ret = control.SetHVL(hvl);
+
+	        if (ret != 0)
+	        {
+	            invalid_value(name, hvl);
+	        }
+	        else
+	        {
+	            valid_value_set(name, unit, hvl);
+	        }
 		}
 		else cdc_puts("too many arguments!\r\n");
 		return 0;

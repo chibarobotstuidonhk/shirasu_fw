@@ -49,16 +49,11 @@ enum class Cmd {
 	recover_position
 };
 
-static constexpr uint8_t cmd_shutdown = 0x00;
-static constexpr uint8_t cmd_recover = 0x01;
-static constexpr uint8_t cmd_home = 0x10;
-static constexpr uint8_t get_status = 0x11;
-
 class PI{
 public:
-	Float_Type Kp;
-	Float_Type Ki;
-	Float_Type T;
+	Float_Type Kp=0;
+	Float_Type Ki=0;
+	Float_Type T=1/1e3;
 	void reset()
 	{
 		e_prev = 0;
@@ -145,7 +140,7 @@ private:
 
 	//Limit
 	Float_Type voltage_lim;
-	static constexpr Float_Type current_lim=60;
+	static constexpr Float_Type current_lim=40;
 	static constexpr Float_Type temperature_lim[2] = {0,75};
 	static constexpr Float_Type vsp_lim[2] = {10,26};
 
@@ -168,12 +163,12 @@ private:
 
 	//Parameters
 	static constexpr Float_Type Tc=0.001;
-	Float_Type Kh;
-	Float_Type HomingVelocity;
+	Float_Type Kh=2 * M_PI / (2000 * Tc);
+	Float_Type HomingVelocity=0;
 	uint16_t ccr_arr;
 	uint16_t ccr_max;
 	Motor motor;
-	uint32_t can_id;
+	uint32_t can_id=0x7fc;
 
 	Error error=Error::none;
 

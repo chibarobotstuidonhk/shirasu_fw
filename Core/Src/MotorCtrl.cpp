@@ -265,7 +265,6 @@ Float_Type MotorCtrl::GetCPR(void) const{
 int8_t MotorCtrl::SetKp(Float_Type kp)
 {
     if (kp < 0 || !std::isfinite(kp)){
-    	velocity_controller.Kp = 0;
     	return -1;
     }
 
@@ -280,7 +279,6 @@ Float_Type MotorCtrl::GetKp(void) const{
 // integral gain
 int8_t MotorCtrl::SetKi(Float_Type ki){
     if (ki < 0 || !std::isfinite(ki)){
-    	velocity_controller.Ki = 0;
     	return -1;
     }
 
@@ -295,7 +293,6 @@ Float_Type MotorCtrl::GetKi(void) const{
 int8_t MotorCtrl::SetKv(Float_Type kv){
     // Kv is NOT allowed to be negative value.
     if (kv < 0 || !std::isfinite(kv)){
-    	position_controller.Kp = 0;
     	return -1;
     }
 
