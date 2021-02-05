@@ -94,26 +94,41 @@ extern "C" {
 			control.SetTarget(data);
 		}
 		else if(can.receive(cmd,control.GetBID())){
-			switch(cmd){
-			case 0:
+			switch(static_cast<Cmd>(cmd)){
+			case Cmd::shutdown:
 				control.SetMode(Mode::disable);
 				break;
-			case 1:
+			case Cmd::recover:
 				control.SetMode(control.GetDefaultMode());
 				break;
-			case 2:
+			case Cmd::home:
+				control.SetMode(Mode::homing);
+				break;
+			case Cmd::get_status:
+//TODO:get status
+				break;
+			case Cmd::recover_current:
 				control.SetMode(Mode::current);
 				break;
-			case 3:
+			case Cmd::recover_velocity:
 				control.SetMode(Mode::velocity);
 				break;
-			case 4:
+			case Cmd::recover_position:
 				control.SetMode(Mode::position);
 				break;
 			}
 		}
 
 		can.endit();//割り込み終了
+	}
+
+	void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
+		if(GPIO_Pin==DIN_A_Pin){
+			if(control.GetMode()==Mode::homing){
+				control.SetMode(Mode::disable);
+				control.ResetPosition();
+			}
+		}
 	}
 };
 

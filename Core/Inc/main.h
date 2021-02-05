@@ -82,6 +82,7 @@ void main_cpp(void);
 #define LED_CAN_GPIO_Port GPIOB
 #define DIN_A_Pin GPIO_PIN_6
 #define DIN_A_GPIO_Port GPIOB
+#define DIN_A_EXTI_IRQn EXTI9_5_IRQn
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */

@@ -21,9 +21,38 @@ struct DataStruct{
 	int32_t position_pulse;
 };
 
-enum class Mode {duty,current,velocity,position,disable};
-enum class Diagnostic {disable,usb,can};
-enum class Error {none,out_of_operating_voltage,out_of_operating_temperature};
+enum class Mode {
+	disable,
+	duty,
+	current,
+	velocity,
+	position,
+	homing
+};
+enum class Diagnostic {
+	disable,
+	usb,
+	can
+};
+enum class Error {
+	none,
+	out_of_operating_voltage,
+	out_of_operating_temperature
+};
+enum class Cmd {
+	shutdown,
+	recover,
+	home,
+	get_status,
+	recover_current,
+	recover_velocity,
+	recover_position
+};
+
+static constexpr uint8_t cmd_shutdown = 0x00;
+static constexpr uint8_t cmd_recover = 0x01;
+static constexpr uint8_t cmd_home = 0x10;
+static constexpr uint8_t get_status = 0x11;
 
 class PI{
 public:
@@ -77,6 +106,8 @@ public:
 	void ControlVelocity();
 	void ControlPosition();
 
+	 void ResetPosition(Float_Type offset = 0.0);
+
 	//setter
 	int8_t SetTEMP(Float_Type temp);
 	int8_t SetCPR(Float_Type cpr);
@@ -89,6 +120,7 @@ public:
 	void SetTarget(Float_Type);
 	int8_t SetVSP(Float_Type sv);
 	void SetVoltage();
+	int8_t SetHVL(Float_Type hvl);
 
 	//getter
 	Float_Type GetTEMP() const;
@@ -103,6 +135,7 @@ public:
     Float_Type GetVSP() const;
     //TODO:GetVoltage
     Error GetError() const;
+    Float_Type GetHVL() const;
 private:
     //Handle
 	TIM_HandleTypeDef* tim_pwm;
@@ -136,6 +169,7 @@ private:
 	//Parameters
 	static constexpr Float_Type Tc=0.001;
 	Float_Type Kh;
+	Float_Type HomingVelocity;
 	uint16_t ccr_arr;
 	uint16_t ccr_max;
 	Motor motor;

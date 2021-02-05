@@ -92,6 +92,7 @@ void MotorCtrl::UpdatePulse(int16_t pulse){
 		case Mode::position:
 			ControlPosition();
 		case Mode::velocity:
+		case Mode::homing:
 			ControlVelocity();
 			break;
 	}
@@ -103,12 +104,19 @@ void MotorCtrl::UpdateCurrent(int32_t data){
 		case Mode::current:
 		case Mode::velocity:
 		case Mode::position:
+		case Mode::homing:
 			ControlCurrent();
 			break;
 		case Mode::duty:
 			ControlDuty();
 			break;
 	}
+}
+
+void MotorCtrl::ResetPosition(Float_Type offset)
+{
+	if(GetMode()!=Mode::disable) return;
+	target.position_pulse = current.position_pulse = offset / (Kh * Tc);
 }
 
 // @param d duty ratio multiplied by 1000, where 1000 represents 100% duty ratio.
@@ -180,6 +188,15 @@ void MotorCtrl::SetMode(Mode Mode){
 		case Mode::position:
 			target.position_pulse = current.position_pulse;
 			break;
+		case Mode::homing:
+			if(HAL_GPIO_ReadPin(DIN_A_GPIO_Port, DIN_A_Pin)==GPIO_PIN_RESET){
+				ResetPosition();
+		        return;
+			}
+			else target.velocity = HomingVelocity;
+			break;
+		default:
+			;
 	}
 	if(Mode != Mode::disable){
 		Start();
@@ -339,6 +356,18 @@ Float_Type MotorCtrl::GetTEMP() const{
 	return temperature;
 }
 
+int8_t MotorCtrl::SetHVL(Float_Type hvl){
+	if(std::isfinite(hvl)){
+		HomingVelocity = hvl;
+		return 0;
+	}
+	else return -1;
+}
+
+Float_Type MotorCtrl::GetHVL() const{
+	return HomingVelocity;
+}
+
 Error MotorCtrl::GetError() const{
 	return error;
 }
@@ -370,7 +399,8 @@ void MotorCtrl::ControlPosition(){
 
 void MotorCtrl::ReadConfig(){
 	readConf();
-	can_id = confStruct.can_id;
+	SetBID(confStruct.can_id);
+	SetHVL(confStruct.HomVel);
 	SetDefaultMode(static_cast<Mode>(confStruct.default_mode));
 	SetCPR(confStruct.cpr);
 	SetKp(confStruct.Kp);
@@ -379,8 +409,9 @@ void MotorCtrl::ReadConfig(){
 }
 
 void MotorCtrl::WriteConfig(){
-    confStruct.can_id = can_id;
-    confStruct.default_mode = static_cast<uint8_t>(default_mode);
+    confStruct.can_id = GetBID();
+    confStruct.HomVel = GetHVL();
+    confStruct.default_mode = static_cast<uint8_t>(GetDefaultMode());
     confStruct.cpr = GetCPR();
     confStruct.Kp = GetKp();
     confStruct.Ki = GetKi();

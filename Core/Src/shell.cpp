@@ -285,6 +285,27 @@ namespace{
 		return 0;
 	}
 
+	MSCMD_USER_RESULT usrcmd_hvl(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
+	{
+		USER_OBJECT *uo = (USER_OBJECT *)usrobj;
+		char buf[MSCONF_MAX_INPUT_LENGTH];
+		int argc;
+		msopt_get_argc(msopt, &argc);
+		if(argc == 1){
+			char str[256]={};
+			sprintf(str,"%f[rad/s]\r\n",control.GetHVL());
+			uo->puts(str);
+		}
+		else if(argc == 2){
+			msopt_get_argv(msopt, 1, buf, sizeof(buf));
+			Float_Type hvl;
+			sscanf(buf,"%f",&hvl);
+			control.SetHVL(hvl);
+		}
+		else cdc_puts("too many arguments!\r\n");
+		return 0;
+	}
+
 	MSCMD_USER_RESULT usrcmd_default_mode(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
 	{
 		USER_OBJECT *uo = (USER_OBJECT *)usrobj;
@@ -384,6 +405,9 @@ namespace{
 				case Mode::position:
 					cdc_puts("position control\r\n");
 					break;
+				case Mode::homing:
+					cdc_puts("homing\r\n");
+					break;
 				case Mode::disable:
 					cdc_puts("disable\r\n");
 					break;
@@ -395,6 +419,7 @@ namespace{
 			else if(std::strcmp(buf,"CUR")==0) control.SetMode(Mode::current);
 			else if(std::strcmp(buf,"VEL")==0) control.SetMode(Mode::velocity);
 			else if(std::strcmp(buf,"POS")==0) control.SetMode(Mode::position);
+			else if(std::strcmp(buf,"HOM")==0) control.SetMode(Mode::homing);
 			else if(std::strcmp(buf,"DEF")==0) control.SetMode(control.GetDefaultMode());
 			else control.SetMode(Mode::disable);
 		}
@@ -406,6 +431,7 @@ namespace{
 	{
 		control.WriteConfig();
 		writeConf();
+		cdc_puts("written to flash\r\n");
 		return 0;
 	}
 
@@ -419,6 +445,7 @@ namespace{
 		{	"VSP"	,	 usrcmd_vsp},
 		{	"TEMP"	,	usrcmd_temp},
 		{   "KVP"    ,   usrcmd_kvp	},
+		{ 	"HVL" ,   usrcmd_hvl	},
 		{   "DEF"    ,   usrcmd_default_mode },
 		{	"MONITOR", usrcmd_monitor	},
 		{   "TEST"    ,   usrcmd_test	},
