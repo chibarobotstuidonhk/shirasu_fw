@@ -34,11 +34,35 @@ extern "C" {
 	  //30Hz
 	  if(htim->Instance == TIM3)
 	  {
-			can.led_process();
 			if(HAL_GPIO_ReadPin(EMS_GPIO_Port, EMS_Pin) == GPIO_PIN_RESET && control.GetMode()!=Mode::disable)
 			{
 				control.SetMode(Mode::disable);
 			}
+
+			//process led
+			can.led_process();
+			uint16_t tick = HAL_GetTick()%2000;
+			if(tick < 100) HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_RESET);
+			else HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_SET);
+			switch(control.GetMode()){
+				case Mode::disable:
+					HAL_GPIO_WritePin(LED_YELLOW_GPIO_Port, LED_YELLOW_Pin, GPIO_PIN_RESET);
+					HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_SET);
+					break;
+				case Mode::duty:
+				case Mode::current:
+				case Mode::velocity:
+				case Mode::position:
+					HAL_GPIO_WritePin(LED_YELLOW_GPIO_Port, LED_YELLOW_Pin, GPIO_PIN_SET);
+					HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_RESET);
+					break;
+				case Mode::homing:
+					HAL_GPIO_WritePin(LED_YELLOW_GPIO_Port, LED_YELLOW_Pin, GPIO_PIN_SET);
+					if((500 < tick && tick < 1000) || (1500 < tick)) HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_RESET);
+					else HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_SET);
+					break;
+			}
+
 			if(HAL_ADCEx_InjectedPollForConversion(&hadc1,0)==HAL_OK){
 				uint32_t adc_voltage = HAL_ADCEx_InjectedGetValue(&hadc1,1);
 				control.SetVSP(adc_voltage*3.3*11/4096);

@@ -195,13 +195,13 @@ namespace{
 		const char* name = "ppr";
 		const char* unit = "Pulse per Revolution";
 		if(argc == 1){
-		    dump_value(name, unit, control.GetPPR());
+		    dump_value(name, unit, control.GetCPR()/4);
 		}
 		else if(argc == 2){
 			msopt_get_argv(msopt, 1, buf, sizeof(buf));
-			Float_Type ppr;
+			double ppr;
 			std:sscanf(buf,"%lf",&ppr);
-			int8_t ret = control.SetPPR(ppr);
+			int8_t ret = control.SetCPR(ppr*4);
 
 	        if (ret != 0)
 	        {
@@ -230,7 +230,7 @@ namespace{
 		}
 		else if(argc == 2){
 			msopt_get_argv(msopt, 1, buf, sizeof(buf));
-			Float_Type cpr;
+			double cpr;
 			std:sscanf(buf,"%lf",&cpr);
 			int8_t ret = control.SetCPR(cpr);
 
@@ -260,7 +260,7 @@ namespace{
 		}
 		else if(argc == 2){
 			msopt_get_argv(msopt, 1, buf, sizeof(buf));
-			Float_Type kpr;
+			double kpr;
 			std:sscanf(buf,"%lf",&kpr);
 			int8_t ret = control.SetKp(kpr);
 
@@ -291,7 +291,7 @@ namespace{
 		}
 		else if(argc == 2){
 			msopt_get_argv(msopt, 1, buf, sizeof(buf));
-			Float_Type ki;
+			double ki;
 			std:sscanf(buf,"%lf",&ki);
 			int8_t ret = control.SetKi(ki);
 
@@ -322,7 +322,7 @@ namespace{
 		}
 		else if(argc == 2){
 			msopt_get_argv(msopt, 1, buf, sizeof(buf));
-			Float_Type kv;
+			double kv;
 			std:sscanf(buf,"%lf",&kv);
 			int8_t ret = control.SetKv(kv);
 
@@ -368,7 +368,7 @@ namespace{
 		}
 		else if(argc == 2){
 			msopt_get_argv(msopt, 1, buf, sizeof(buf));
-			Float_Type hvl;
+			double hvl;
 			std:sscanf(buf,"%lf",&hvl);
 			int8_t ret = control.SetHVL(hvl);
 
@@ -438,6 +438,22 @@ namespace{
 		return 0;
 	}
 
+	MSCMD_USER_RESULT usrcmd_pos(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
+	{
+		USER_OBJECT *uo = (USER_OBJECT *)usrobj;
+		char buf[MSCONF_MAX_INPUT_LENGTH];
+		int argc;
+		msopt_get_argc(msopt, &argc);
+
+		const char* name = "Position";
+		const char* unit = "rad";
+		if(argc == 1){
+		    dump_value(name, unit,control.GetPOS());
+		}
+		else cdc_puts("too many arguments!\r\n");
+		return 0;
+	}
+
 	MSCMD_USER_RESULT usrcmd_test(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
 	{
 		USER_OBJECT *uo = (USER_OBJECT *)usrobj;
@@ -449,6 +465,7 @@ namespace{
 			Float_Type target;
 			sscanf(buf,"%f",&target);
 			cdc_puts("tick,position_pulse,target_position_pulse,velocity,target_velocity,current,target_current,target_voltage,temperature\r\n");
+			cdc_puts("tick,velocity,target_velocity\r\n");
 			control.SetMode(control.GetDefaultMode());
 			control.conf_diag = Diagnostic::usb;
 			HAL_Delay(3000);
@@ -534,6 +551,7 @@ namespace{
 		{   "t_led",  usrcmd_led_toggle	},
 		{ 	"TARGET" ,   usrcmd_target	},
 		{ 	"ERROR" ,   usrcmd_error	},
+		{ 	"POS" ,   usrcmd_pos	},
 	};
 
 }

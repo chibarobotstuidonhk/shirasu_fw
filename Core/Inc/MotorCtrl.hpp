@@ -131,6 +131,7 @@ public:
     //TODO:GetVoltage
     Error GetError() const;
     Float_Type GetHVL() const;
+    Float_Type GetPOS() const;
 private:
     //Handle
 	TIM_HandleTypeDef* tim_pwm;
@@ -142,7 +143,7 @@ private:
 	Float_Type voltage_lim;
 	static constexpr Float_Type current_lim=40;
 	static constexpr Float_Type temperature_lim[2] = {0,75};
-	static constexpr Float_Type vsp_lim[2] = {10,26};
+	static constexpr Float_Type vsp_lim[2] = {11.4,30};
 
 	//Controller
 	PI current_controller;

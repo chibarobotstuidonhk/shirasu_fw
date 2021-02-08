@@ -29,7 +29,7 @@ void MotorCtrl::Init(TIM_HandleTypeDef* tim_pwm,ADC_HandleTypeDef* adc_current,A
 
 	motor.R = 0.289256;
 	motor.L = 0.000144628;
-	current_controller.Kp = 2000*motor.L;
+	current_controller.Kp = 1500*motor.L;
 	Float_Type pole = motor.R / motor.L;
 	current_controller.Ki = pole * current_controller.Kp;
 	current_controller.T = 1.0/16e3;
@@ -171,10 +171,13 @@ void MotorCtrl::SetVoltage(){
 }
 
 void MotorCtrl::SetMode(Mode Mode){
-	if(HAL_GPIO_ReadPin(EMS_GPIO_Port, EMS_Pin) == GPIO_PIN_RESET)
+	if(HAL_GPIO_ReadPin(EMS_GPIO_Port, EMS_Pin) == GPIO_PIN_RESET || Mode==Mode::disable)
 	{
+		Stop();
+		mode = Mode::disable;
 		return;
 	}
+
 	switch(Mode){
 		case Mode::duty:
 			target_duty = 0;
@@ -198,16 +201,7 @@ void MotorCtrl::SetMode(Mode Mode){
 		default:
 			;
 	}
-	if(Mode != Mode::disable){
-		Start();
-		HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(LED_YELLOW_GPIO_Port, LED_YELLOW_Pin, GPIO_PIN_SET);
-	}
-	else{
-		Stop();
-		HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(LED_YELLOW_GPIO_Port, LED_YELLOW_Pin, GPIO_PIN_RESET);
-	}
+	Start();
 	mode = Mode;
 }
 
@@ -365,6 +359,10 @@ Float_Type MotorCtrl::GetHVL() const{
 	return HomingVelocity;
 }
 
+Float_Type MotorCtrl::GetPOS() const{
+	return current.position_pulse*Kh*Tc;
+}
+
 Error MotorCtrl::GetError() const{
 	return error;
 }
@@ -418,11 +416,13 @@ void MotorCtrl::WriteConfig(){
 void MotorCtrl::Print(){
     char buf[128];
     int ret;
-    ret = std::sprintf(buf, "%06lu,%+03d,%+03d,%+3.3f,%+3.3f,%+3.3f,%+3.3f,%+3.3f,%+3.3f\r\n", HAL_GetTick(),
-            current.position_pulse, target.position_pulse,
-			(float)current.velocity,(float)target.velocity,
-            (float)current.current,(float)target.current,
-			(float)target_voltage,(float)temperature);
+//    ret = std::sprintf(buf, "%06lu,%+03d,%+03d,%+3.3f,%+3.3f,%+3.3f,%+3.3f,%+3.3f,%+3.3f\r\n", HAL_GetTick(),
+//            current.position_pulse, target.position_pulse,
+//			(float)current.velocity,(float)target.velocity,
+//            (float)current.current,(float)target.current,
+//			(float)target_voltage,(float)temperature);
+    ret = std::sprintf(buf, "%06lu,%+3.3f,%+3.3f\r\n", HAL_GetTick(),
+			(float)current.velocity,(float)target.velocity);
 
     if (ret < 0)
     {
