@@ -17,6 +17,7 @@ struct ConfStruct
         double Ki;
         double Kv;
         double HomVel;
+        uint8_t diagnostic;
 };
 
 extern ConfStruct confStruct;

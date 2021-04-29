@@ -73,7 +73,6 @@ extern "C" {
 				double R_load = 3.3e3;
 				double R_measure = (4096*R_load)/(double)adc_temp - R_load;
 				control.SetTEMP(B/log(R_measure/R_inf) - 273.15);
-				if(control.conf_diag == Diagnostic::can) can.send(control.GetTEMP(),0x7fb);
 				HAL_ADCEx_InjectedStart(&hadc1);
 			}
 	  }
@@ -96,12 +95,16 @@ extern "C" {
 	void update(){
 		switch(control.conf_diag){
 			case Diagnostic::usb:
-				control.Print();
+				if(control.GetMode()!=Mode::disable) control.Print();
 				break;
-			case Diagnostic::can:
-				//can.send(control.data.voltage,0x7fc);
-//				can.send(control.data.current,0x7fd);
-				//can.send(control.data.velocity,0x7fe);
+			case Diagnostic::cur:
+				can.send(control.GetCUR(),control.GetBID()+2);
+				break;
+			case Diagnostic::vel:
+				can.send(control.GetVEL(),control.GetBID()+2);
+				break;
+			case Diagnostic::pos:
+				can.send(control.GetPOS(),control.GetBID()+2);
 				break;
 		}
 
@@ -141,6 +144,8 @@ extern "C" {
 				control.SetMode(Mode::position);
 				break;
 			}
+			uint8_t ack=1;
+			can.send(ack, control.GetBID()+3);
 		}
 
 		can.endit();//割り込み終了

@@ -41,9 +41,21 @@ namespace{
 		if(0 < ret) cdc_puts(tx_buf);
 	}
 
+	void invalid_value(const char * name, const char * param)
+	{
+		int ret = std::sprintf(tx_buf, "--> Invalid value for %s: %s\r\n", name, param);
+		if(0 < ret) cdc_puts(tx_buf);
+	}
+
 	void valid_value_set(const char * name, const char * unit, double value)
 	{
 		int ret = std::sprintf(tx_buf, "--> Set %s: %lf [%s]\r\n", name, value, unit);
+		if(0 < ret) cdc_puts(tx_buf);
+	}
+
+	void valid_value_set(const char * name, const char * param)
+	{
+		int ret = std::sprintf(tx_buf, "--> Set %s: %s\r\n", name, param);
 		if(0 < ret) cdc_puts(tx_buf);
 	}
 
@@ -53,6 +65,17 @@ namespace{
 	    if(0 < ret) cdc_puts(tx_buf);
 	}
 
+	void dump_value(const char * name, const char * param)
+	{
+	    int ret = std::sprintf(tx_buf, "--> Current %s: %s\r\n", name, param);
+	    if(0 < ret) cdc_puts(tx_buf);
+	}
+
+	void too_many_arguments()
+	{
+	    int ret = std::sprintf(tx_buf, "--> too many arguments!\r\n");
+	    if(0 < ret) cdc_puts(tx_buf);
+	}
 
 	typedef struct {
 		void (*puts)(char *str);
@@ -68,29 +91,9 @@ namespace{
 
 	MSCMD_USER_RESULT usrcmd_help(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
 	{
-		USER_OBJECT *uo = (USER_OBJECT *)usrobj;
-		uo->puts(
-				"system : system command\r\n"
-				"config : config command\r\n"
-				"help   : help command\r\n"
-				"t_led   : toggle led\r\n"
-				);
-		return 0;
-	}
+		int ret = std::sprintf(tx_buf, "shirasu version:%s\r\n", SHIRASU_VERSION);
+		if(0 < ret) cdc_puts(tx_buf);
 
-	MSCMD_USER_RESULT usrcmd_led_toggle(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
-	{
-		USER_OBJECT *uo = (USER_OBJECT *)usrobj;
-		char buf[MSCONF_MAX_INPUT_LENGTH];
-		int argc;
-		msopt_get_argc(msopt, &argc);
-		for (int i = 0; i < argc; i++) {
-			msopt_get_argv(msopt, i, buf, sizeof(buf));
-			if (std::strcmp(buf, "RED") == 0) HAL_GPIO_TogglePin(LED_RED_GPIO_Port, LED_RED_Pin);
-			else if (std::strcmp(buf, "GREEN") == 0) HAL_GPIO_TogglePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin);
-			else if (std::strcmp(buf, "YELLOW") == 0) HAL_GPIO_TogglePin(LED_YELLOW_GPIO_Port, LED_YELLOW_Pin);
-			else if (std::strcmp(buf, "CAN") == 0) HAL_GPIO_TogglePin(LED_CAN_GPIO_Port, LED_CAN_Pin);
-		}
 		return 0;
 	}
 
@@ -111,28 +114,60 @@ namespace{
 			sscanf(buf,"%lf",&target);
 			control.SetTarget(target);
 		}
-		else cdc_puts("too many arguments!\r\n");
+		else too_many_arguments();
 		return 0;
 	}
 
-	MSCMD_USER_RESULT usrcmd_monitor(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
+	MSCMD_USER_RESULT usrcmd_diagnostic(MSOPT *msopt, MSCMD_USER_OBJECT usrobj)
 	{
 		USER_OBJECT *uo = (USER_OBJECT *)usrobj;
 		char buf[MSCONF_MAX_INPUT_LENGTH];
 		int argc;
 		msopt_get_argc(msopt, &argc);
 		if(argc == 1){
-			char str[256];
-			sprintf(str,"%d\r\n",control.conf_diag);
-			uo->puts(str);
+			switch(control.conf_diag){
+				case Diagnostic::disable:
+					dump_value("DIAG", "disable");
+					break;
+				case Diagnostic::usb:
+					dump_value("DIAG", "usb");
+					break;
+				case Diagnostic::cur:
+					dump_value("DIAG", "current");
+					break;
+				case Diagnostic::vel:
+					dump_value("DIAG", "velocity");
+					break;
+				case Diagnostic::pos:
+					dump_value("DIAG","velocity");
+					break;
+			}
 		}
 		else if(argc == 2){
 			msopt_get_argv(msopt, 1, buf, sizeof(buf));
-			uint8_t monitor;
-			sscanf(buf,"%d",&monitor);
-			control.conf_diag = static_cast<Diagnostic>(monitor);
+
+			if (std::strcmp(buf, "USB") == 0){
+				control.conf_diag = Diagnostic::usb;
+				valid_value_set("DIAG", "usb");
+			}
+			else if(std::strcmp(buf, "CUR") == 0){
+				control.conf_diag = Diagnostic::cur;
+				valid_value_set("DIAG", "current");
+			}
+			else if(std::strcmp(buf,"VEL")==0){
+				control.conf_diag = Diagnostic::vel;
+				valid_value_set("DIAG", "velocity");
+			}
+			else if(std::strcmp(buf,"POS")==0){
+				control.conf_diag = Diagnostic::pos;
+				valid_value_set("DIAG", "position");
+			}
+			else{
+				control.conf_diag = Diagnostic::disable;
+				valid_value_set("DIAG", "disable");
+			}
 		}
-		else cdc_puts("too many arguments!\r\n");
+		else too_many_arguments();
 		return 0;
 	}
 
@@ -145,17 +180,17 @@ namespace{
 		if(argc == 1){
 			switch(control.GetError()){
 				case Error::out_of_operating_voltage:
-					cdc_puts("out of operating voltage\r\n");
+					dump_value("ERROR", "out of operating voltage");
 					break;
 				case Error::out_of_operating_temperature:
-					cdc_puts("out of operating temperature\r\n");
+					dump_value("ERROR", "out of operating temperature");
 					break;
 				default:
-					cdc_puts("none\r\n");
+					dump_value("ERROR", "none");
 					break;
 			}
 		}
-		else cdc_puts("too many arguments!\r\n");
+		else too_many_arguments();
 		return 0;
 	}
 
@@ -167,9 +202,9 @@ namespace{
 		char buf[MSCONF_MAX_INPUT_LENGTH];
 		int argc;
 		msopt_get_argc(msopt, &argc);
+		char str[256]={};
 		if(argc == 1){
-			char str[256]={};
-			sprintf(str,"--> Current BID: 0X%3x\r\n",control.GetBID());
+			sprintf(str,"--> Current BID: 0X%03x\r\n",control.GetBID());
 			uo->puts(str);
 		}
 		else if(argc == 2){
@@ -177,11 +212,12 @@ namespace{
 			uint16_t id;
 			sscanf(buf,"%3x",&id);
 			if(control.SetBID(id)){
-				cdc_puts("invalid BID\r\n");
-				cdc_puts("BID should be 0x003 < bid < 0x800 and multiples of 4\r\n");
+				sprintf(str,"--> Invalid value for BID: 0X%03x\r\n",id);
+				uo->puts(str);
+				cdc_puts("--> BID should be 0x003 < bid < 0x800 and multiples of 4\r\n");
 			}
 		}
-		else cdc_puts("too many arguments!\r\n");
+		else too_many_arguments();
 		return 0;
 	}
 
@@ -212,7 +248,7 @@ namespace{
 	            valid_value_set(name, unit, ppr);
 	        }
 		}
-		else cdc_puts("too many arguments!\r\n");
+		else too_many_arguments();
 		return 0;
 	}
 
@@ -243,7 +279,7 @@ namespace{
 	            valid_value_set(name, unit, cpr);
 	        }
 		}
-		else cdc_puts("too many arguments!\r\n");
+		else too_many_arguments();
 		return 0;
 	}
 
@@ -273,7 +309,7 @@ namespace{
 	            valid_value_set(name, unit, kpr);
 	        }
 		}
-		else cdc_puts("too many arguments!\r\n");
+		else too_many_arguments();
 		return 0;
 	}
 
@@ -304,7 +340,7 @@ namespace{
 	            valid_value_set(name, unit, ki);
 	        }
 		}
-		else cdc_puts("too many arguments!\r\n");
+		else too_many_arguments();
 		return 0;
 	}
 
@@ -335,7 +371,7 @@ namespace{
 	            valid_value_set(name, unit, kv);
 	        }
 		}
-		else cdc_puts("too many arguments!\r\n");
+		else too_many_arguments();
 		return 0;
 	}
 
@@ -345,12 +381,13 @@ namespace{
 		char buf[MSCONF_MAX_INPUT_LENGTH];
 		int argc;
 		msopt_get_argc(msopt, &argc);
+
+		const char* name = "Supply Voltage";
+		const char* unit = "V";
 		if(argc == 1){
-			char str[256]={};
-			sprintf(str,"%f[V]\r\n",control.GetVSP());
-			uo->puts(str);
+			dump_value(name, unit, control.GetVSP());
 		}
-		else cdc_puts("too many arguments!\r\n");
+		else too_many_arguments();
 		return 0;
 	}
 
@@ -381,7 +418,7 @@ namespace{
 	            valid_value_set(name, unit, hvl);
 	        }
 		}
-		else cdc_puts("too many arguments!\r\n");
+		else too_many_arguments();
 		return 0;
 	}
 
@@ -394,31 +431,46 @@ namespace{
 		if(argc == 1){
 			switch(control.GetDefaultMode()){
 				case Mode::duty:
-					cdc_puts("duty control\r\n");
+					dump_value("DEF", "duty");
 					break;
 				case Mode::current:
-					cdc_puts("current control\r\n");
+					dump_value("DEF", "current");
 					break;
 				case Mode::velocity:
-					cdc_puts("velocity control\r\n");
+					dump_value("DEF", "disable");
 					break;
 				case Mode::position:
-					cdc_puts("position control\r\n");
+					dump_value("DEF", "position");
 					break;
 				default:
-					cdc_puts("disable\r\n");
+					dump_value("DEF", "disable");
 					break;
 			}
 		}
 		else if(argc == 2){
 			msopt_get_argv(msopt, 1, buf, sizeof(buf));
-			if(std::strcmp(buf,"DUT")==0) control.SetDefaultMode(Mode::duty);
-			else if(std::strcmp(buf,"CUR")==0) control.SetDefaultMode(Mode::current);
-			else if(std::strcmp(buf,"VEL")==0) control.SetDefaultMode(Mode::velocity);
-			else if(std::strcmp(buf,"POS")==0) control.SetDefaultMode(Mode::position);
-			else control.SetDefaultMode(Mode::disable);
+			if(std::strcmp(buf,"DUT")==0){
+				control.SetDefaultMode(Mode::duty);
+				valid_value_set("DEF", "duty");
+			}
+			else if(std::strcmp(buf,"CUR")==0){
+				control.SetDefaultMode(Mode::current);
+				valid_value_set("DEF", "current");
+			}
+			else if(std::strcmp(buf,"VEL")==0){
+				control.SetDefaultMode(Mode::velocity);
+				valid_value_set("DEF", "velocity");
+			}
+			else if(std::strcmp(buf,"POS")==0){
+				control.SetDefaultMode(Mode::position);
+				valid_value_set("DEF", "POS");
+			}
+			else{
+				control.SetDefaultMode(Mode::disable);
+				valid_value_set("DEF", "disable");
+			}
 		}
-		else cdc_puts("too many arguments!\r\n");
+		else too_many_arguments();
 		return 0;
 	}
 
@@ -429,12 +481,12 @@ namespace{
 		char buf[MSCONF_MAX_INPUT_LENGTH];
 		int argc;
 		msopt_get_argc(msopt, &argc);
+		const char* name = "Temperature";
+		const char* unit = "degrees";
 		if(argc == 1){
-			char str[256]={};
-			sprintf(str,"%f[degrees]\r\n",control.GetTEMP());
-			uo->puts(str);
+			dump_value(name, unit, control.GetTEMP());
 		}
-		else cdc_puts("too many arguments!\r\n");
+		else too_many_arguments();
 		return 0;
 	}
 
@@ -450,7 +502,7 @@ namespace{
 		if(argc == 1){
 		    dump_value(name, unit,control.GetPOS());
 		}
-		else cdc_puts("too many arguments!\r\n");
+		else too_many_arguments();
 		return 0;
 	}
 
@@ -490,36 +542,57 @@ namespace{
 		if(argc == 1){
 			switch(control.GetMode()){
 				case Mode::duty:
-					cdc_puts("duty control\r\n");
+					dump_value("MODE", "duty");
 					break;
 				case Mode::current:
-					cdc_puts("current control\r\n");
+					dump_value("MODE","current");
 					break;
 				case Mode::velocity:
-					cdc_puts("velocity control\r\n");
+					dump_value("MODE", "velocity");
 					break;
 				case Mode::position:
-					cdc_puts("position control\r\n");
+					dump_value("MODE", "position");
 					break;
 				case Mode::homing:
-					cdc_puts("homing\r\n");
+					dump_value("MODE", "homing");
 					break;
 				case Mode::disable:
-					cdc_puts("disable\r\n");
+					dump_value("MODE", "disable");
 					break;
 			}
 		}
 		else if(argc == 2){
 			msopt_get_argv(msopt, 1, buf, sizeof(buf));
-			if(std::strcmp(buf,"DUT")==0) control.SetMode(Mode::duty);
-			else if(std::strcmp(buf,"CUR")==0) control.SetMode(Mode::current);
-			else if(std::strcmp(buf,"VEL")==0) control.SetMode(Mode::velocity);
-			else if(std::strcmp(buf,"POS")==0) control.SetMode(Mode::position);
-			else if(std::strcmp(buf,"HOM")==0) control.SetMode(Mode::homing);
-			else if(std::strcmp(buf,"DEF")==0) control.SetMode(control.GetDefaultMode());
-			else control.SetMode(Mode::disable);
+			if(std::strcmp(buf,"DUT")==0){
+				control.SetMode(Mode::duty);//TODO: 成功したかを判定できるように
+				valid_value_set("MODE","duty");
+			}
+			else if(std::strcmp(buf,"CUR")==0){
+				control.SetMode(Mode::current);
+				valid_value_set("MODE", "current");
+			}
+			else if(std::strcmp(buf,"VEL")==0){
+				control.SetMode(Mode::velocity);
+				valid_value_set("MODE", "velocity");
+			}
+			else if(std::strcmp(buf,"POS")==0){
+				control.SetMode(Mode::position);
+				valid_value_set("MODE", "position");
+			}
+			else if(std::strcmp(buf,"HOM")==0){
+				control.SetMode(Mode::homing);
+				valid_value_set("MODE","homing");
+			}
+			else if(std::strcmp(buf,"DEF")==0){
+				control.SetMode(control.GetDefaultMode());
+				valid_value_set("MODE", "default");
+			}
+			else{
+				control.SetMode(Mode::disable);
+				valid_value_set("MODE", "disable");
+			}
 		}
-		else cdc_puts("too many arguments!\r\n");
+		else too_many_arguments();
 		return 0;
 	}
 
@@ -527,7 +600,7 @@ namespace{
 	{
 		control.WriteConfig();
 		writeConf();
-		cdc_puts("written to flash\r\n");
+		cdc_puts("--> written to flash\r\n");
 		return 0;
 	}
 
@@ -543,12 +616,11 @@ namespace{
 		{   "KVP"    ,   usrcmd_kvp	},
 		{ 	"HVL" ,   usrcmd_hvl	},
 		{   "DEF"    ,   usrcmd_default_mode },
-		{	"MONITOR", usrcmd_monitor	},
+		{	"DIAG", usrcmd_diagnostic	},
 		{   "TEST"    ,   usrcmd_test	},
 		{   "WCFG"    ,   usrcmd_flash	},
 		{   "HELP",     usrcmd_help     },
 		{   "?",        usrcmd_help     },
-		{   "t_led",  usrcmd_led_toggle	},
 		{ 	"TARGET" ,   usrcmd_target	},
 		{ 	"ERROR" ,   usrcmd_error	},
 		{ 	"POS" ,   usrcmd_pos	},
@@ -561,7 +633,9 @@ namespace shell{
 	void init(){
 		microshell_init(&ms, cdc_put, cdc_getc, action_hook);
 		mscmd_init(&mscmd, table, sizeof(table) / sizeof(table[0]), &usrobj);
-		cdc_puts("\r\nshirasu ");
+
+		int ret = std::sprintf(tx_buf, "\r\nshirasu version:%s\r\n", SHIRASU_VERSION);
+		if(0 < ret) cdc_puts(tx_buf);
 		switch(control.GetDefaultMode()){
 			case Mode::duty:
 				cdc_puts("duty control\r\n");

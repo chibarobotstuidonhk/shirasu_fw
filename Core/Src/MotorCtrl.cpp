@@ -359,6 +359,14 @@ Float_Type MotorCtrl::GetHVL() const{
 	return HomingVelocity;
 }
 
+Float_Type MotorCtrl::GetCUR() const{
+	return current.current;
+}
+
+Float_Type MotorCtrl::GetVEL() const{
+	return current.velocity;
+}
+
 Float_Type MotorCtrl::GetPOS() const{
 	return current.position_pulse*Kh*Tc;
 }
@@ -401,6 +409,7 @@ void MotorCtrl::ReadConfig(){
 	SetKp(confStruct.Kp);
 	SetKi(confStruct.Ki);
 	SetKv(confStruct.Kv);
+	conf_diag = static_cast<Diagnostic>(confStruct.diagnostic);
 }
 
 void MotorCtrl::WriteConfig(){
@@ -411,6 +420,7 @@ void MotorCtrl::WriteConfig(){
     confStruct.Kp = GetKp();
     confStruct.Ki = GetKi();
     confStruct.Kv = GetKv();
+    confStruct.diagnostic = static_cast<uint8_t>(conf_diag);
 }
 
 void MotorCtrl::Print(){

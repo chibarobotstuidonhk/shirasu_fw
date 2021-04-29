@@ -45,9 +45,6 @@ ADC_HandleTypeDef hadc2;
 
 CAN_HandleTypeDef hcan;
 
-COMP_HandleTypeDef hcomp2;
-COMP_HandleTypeDef hcomp4;
-
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
@@ -64,8 +61,6 @@ static void MX_CAN_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_TIM1_Init(void);
-static void MX_COMP2_Init(void);
-static void MX_COMP4_Init(void);
 static void MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
 /* USER CODE END PFP */
@@ -109,8 +104,6 @@ int main(void)
   MX_TIM2_Init();
   MX_ADC1_Init();
   MX_TIM1_Init();
-  MX_COMP2_Init();
-  MX_COMP4_Init();
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
   main_cpp();
@@ -352,76 +345,6 @@ static void MX_CAN_Init(void)
 }
 
 /**
-  * @brief COMP2 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_COMP2_Init(void)
-{
-
-  /* USER CODE BEGIN COMP2_Init 0 */
-
-  /* USER CODE END COMP2_Init 0 */
-
-  /* USER CODE BEGIN COMP2_Init 1 */
-
-  /* USER CODE END COMP2_Init 1 */
-  hcomp2.Instance = COMP2;
-  hcomp2.Init.InvertingInput = COMP_INVERTINGINPUT_VREFINT;
-  hcomp2.Init.NonInvertingInput = COMP_NONINVERTINGINPUT_IO2;
-  hcomp2.Init.Output = COMP_OUTPUT_TIM1BKIN2;
-  hcomp2.Init.OutputPol = COMP_OUTPUTPOL_NONINVERTED;
-  hcomp2.Init.Hysteresis = COMP_HYSTERESIS_NONE;
-  hcomp2.Init.BlankingSrce = COMP_BLANKINGSRCE_NONE;
-  hcomp2.Init.Mode = COMP_MODE_HIGHSPEED;
-  hcomp2.Init.WindowMode = COMP_WINDOWMODE_DISABLE;
-  hcomp2.Init.TriggerMode = COMP_TRIGGERMODE_NONE;
-  if (HAL_COMP_Init(&hcomp2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN COMP2_Init 2 */
-
-  /* USER CODE END COMP2_Init 2 */
-
-}
-
-/**
-  * @brief COMP4 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_COMP4_Init(void)
-{
-
-  /* USER CODE BEGIN COMP4_Init 0 */
-
-  /* USER CODE END COMP4_Init 0 */
-
-  /* USER CODE BEGIN COMP4_Init 1 */
-
-  /* USER CODE END COMP4_Init 1 */
-  hcomp4.Instance = COMP4;
-  hcomp4.Init.InvertingInput = COMP_INVERTINGINPUT_1_4VREFINT;
-  hcomp4.Init.NonInvertingInput = COMP_NONINVERTINGINPUT_IO1;
-  hcomp4.Init.Output = COMP_OUTPUT_TIM1BKIN;
-  hcomp4.Init.OutputPol = COMP_OUTPUTPOL_NONINVERTED;
-  hcomp4.Init.Hysteresis = COMP_HYSTERESIS_NONE;
-  hcomp4.Init.BlankingSrce = COMP_BLANKINGSRCE_NONE;
-  hcomp4.Init.Mode = COMP_MODE_HIGHSPEED;
-  hcomp4.Init.WindowMode = COMP_WINDOWMODE_DISABLE;
-  hcomp4.Init.TriggerMode = COMP_TRIGGERMODE_NONE;
-  if (HAL_COMP_Init(&hcomp4) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN COMP4_Init 2 */
-
-  /* USER CODE END COMP4_Init 2 */
-
-}
-
-/**
   * @brief TIM1 Initialization Function
   * @param None
   * @retval None
@@ -622,6 +545,12 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, LED_RED_Pin|LED_YELLOW_Pin|LED_GREEN_Pin|LED_CAN_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : PB0 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0;
+  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pin : EMS_Pin */
   GPIO_InitStruct.Pin = EMS_Pin;

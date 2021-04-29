@@ -32,7 +32,9 @@ enum class Mode {
 enum class Diagnostic {
 	disable,
 	usb,
-	can
+	cur,
+	vel,
+	pos
 };
 enum class Error {
 	none,
@@ -131,6 +133,8 @@ public:
     //TODO:GetVoltage
     Error GetError() const;
     Float_Type GetHVL() const;
+    Float_Type GetCUR() const;
+    Float_Type GetVEL() const;
     Float_Type GetPOS() const;
 private:
     //Handle
