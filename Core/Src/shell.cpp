@@ -139,7 +139,7 @@ namespace{
 					dump_value("DIAG", "velocity");
 					break;
 				case Diagnostic::pos:
-					dump_value("DIAG","velocity");
+					dump_value("DIAG","position");
 					break;
 			}
 		}
