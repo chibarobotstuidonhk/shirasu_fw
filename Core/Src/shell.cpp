@@ -126,9 +126,6 @@ namespace{
 		msopt_get_argc(msopt, &argc);
 		if(argc == 1){
 			switch(control.conf_diag){
-				case Diagnostic::disable:
-					dump_value("DIAG", "disable");
-					break;
 				case Diagnostic::usb:
 					dump_value("DIAG", "usb");
 					break;
@@ -141,6 +138,11 @@ namespace{
 				case Diagnostic::pos:
 					dump_value("DIAG","position");
 					break;
+				case Diagnostic::disable:
+				default :
+					dump_value("DIAG", "disable");
+					break;
+
 			}
 		}
 		else if(argc == 2){
