@@ -131,7 +131,7 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef* hadc)
 
     __HAL_RCC_GPIOA_CLK_ENABLE();
     /**ADC2 GPIO Configuration
-    PA4     ------> ADC2_IN1
+    PA5     ------> ADC2_IN2
     PA7     ------> ADC2_IN4
     */
     GPIO_InitStruct.Pin = ISENSEB_Pin|ISENSEA_Pin;
@@ -199,7 +199,7 @@ void HAL_ADC_MspDeInit(ADC_HandleTypeDef* hadc)
     }
 
     /**ADC2 GPIO Configuration
-    PA4     ------> ADC2_IN1
+    PA5     ------> ADC2_IN2
     PA7     ------> ADC2_IN4
     */
     HAL_GPIO_DeInit(GPIOA, ISENSEB_Pin|ISENSEA_Pin);
