@@ -64,7 +64,7 @@ void main_cpp(void);
 #define VSENSE_GPIO_Port GPIOA
 #define TEMP_Pin GPIO_PIN_1
 #define TEMP_GPIO_Port GPIOA
-#define ISENSEB_Pin GPIO_PIN_5
+#define ISENSEB_Pin GPIO_PIN_4
 #define ISENSEB_GPIO_Port GPIOA
 #define ISENSEA_Pin GPIO_PIN_7
 #define ISENSEA_GPIO_Port GPIOA
@@ -84,7 +84,7 @@ void main_cpp(void);
 #define DIN_A_GPIO_Port GPIOB
 #define DIN_A_EXTI_IRQn EXTI9_5_IRQn
 /* USER CODE BEGIN Private defines */
-#define SHIRASU_VERSION "1.2.0"
+#define SHIRASU_VERSION "1.1.3"
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
